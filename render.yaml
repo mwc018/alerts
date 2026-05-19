@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: acronis-backup-alerts
+    runtime: node
+    plan: starter          # starter plan ($7/mo) keeps the service always-on
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /data/backup-alerts.db
+      - key: ACRONIS_BASE_URL
+        sync: false
+      - key: ACRONIS_CLIENT_ID
+        sync: false
+      - key: ACRONIS_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_CLIENT_ID
+        sync: false
+      - key: ZOHO_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_REFRESH_TOKEN
+        sync: false
+      - key: ZOHO_ORG_ID
+        sync: false
+      - key: ZOHO_ORG_SLUG
+        sync: false
+      - key: ZOHO_DEPARTMENT_ID
+        sync: false
+      - key: ZOHO_DEPARTMENT_SLUG
+        sync: false
+      - key: ZOHO_BASE_URL
+        value: https://desk.zoho.com
+      - key: GOOGLE_SHEETS_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_SHEETS_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_SPREADSHEET_ID
+        sync: false
+    disk:
+      name: alert-data
+      mountPath: /data
+      sizeGB: 1
