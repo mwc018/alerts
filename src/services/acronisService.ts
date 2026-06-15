@@ -49,7 +49,7 @@ async function getAcronisToken(): Promise<string> {
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const response = await axios.post(
-    `${baseUrl}/idp/token`,
+    `${baseUrl}/api/2/idp/token`,
     'grant_type=client_credentials',
     {
       headers: {
@@ -84,7 +84,7 @@ export async function getActionableBackupAlerts(): Promise<AcronisAlert[]> {
 
   const response = await axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts`, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { type: ['BackupFailed', 'BackupDidNotStartAlert'].join(',') },
+    params: { type: ['BackupFailed', 'BackupDidNotStart', 'ProtectionServiceNotWorking'].join(',') },
   });
 
   const alerts: AcronisAlert[] = response.data.items || response.data.alerts || response.data || [];

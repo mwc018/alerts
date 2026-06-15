@@ -284,15 +284,22 @@ function getFailureReason(alert: BackupAlert): string {
 }
 
 function getAlertSubject(alert: BackupAlert, deviceName: string, tenantName: string): string {
-  if (alert.type === 'BackupDidNotStartAlert') {
+  if (alert.type === 'BackupDidNotStart') {
     return `Backup Did Not Start: ${deviceName} - ${tenantName}`;
+  }
+  if (alert.type === 'ProtectionServiceNotWorking') {
+    return `Acronis Protection Service Not Running: ${deviceName} - ${tenantName}`;
   }
   return `Backup Failed: ${deviceName} - ${tenantName}`;
 }
 
 function buildAlertDescription(alertData: any, alertType: string): string {
   const typeLabel =
-    alertType === 'BackupDidNotStartAlert' ? 'Backup Did Not Start' : 'Backup Failed';
+    alertType === 'BackupDidNotStart'
+      ? 'Backup Did Not Start'
+      : alertType === 'ProtectionServiceNotWorking'
+      ? 'Protection Service Not Running'
+      : 'Backup Failed';
 
   return `
 <h3>${typeLabel} Alert</h3>
