@@ -79,15 +79,19 @@ async function getTenantInfo(uuid: string): Promise<{ name?: string }> {
   }
 }
 
+const ACTIONABLE_TYPES = new Set(['BackupFailed', 'BackupDidNotStart', 'ProtectionServiceNotWorking']);
+
 export async function getActionableBackupAlerts(): Promise<AcronisAlert[]> {
   const token = await getAcronisToken();
 
+  // Fetch all alerts without a type filter — the Acronis API silently returns 0
+  // results when multiple types are passed as a comma-separated string.
   const response = await axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts`, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { type: ['BackupFailed', 'BackupDidNotStart', 'ProtectionServiceNotWorking'].join(',') },
   });
 
-  const alerts: AcronisAlert[] = response.data.items || response.data.alerts || response.data || [];
+  const all: AcronisAlert[] = response.data.items || response.data.alerts || response.data || [];
+  const alerts = all.filter((a) => ACTIONABLE_TYPES.has(a.type));
 
   // Enrich with tenant names if missing
   const enriched = await Promise.all(
