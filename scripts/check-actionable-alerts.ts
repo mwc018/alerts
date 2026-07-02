@@ -34,10 +34,11 @@ async function main() {
 
   const response = await axios.get(`${baseUrl}/api/alert_manager/v1/alerts`, {
     headers: { Authorization: `Bearer ${token}` },
-    params: { type: 'BackupFailed,BackupDidNotStart,ProtectionServiceNotWorking' },
   });
 
-  const alerts: any[] = response.data.items || response.data.alerts || response.data || [];
+  const ACTIONABLE_TYPES = new Set(['BackupFailed', 'BackupDidNotStart', 'ProtectionServiceNotWorking']);
+  const all: any[] = response.data.items || response.data.alerts || response.data || [];
+  const alerts = all.filter((a: any) => ACTIONABLE_TYPES.has(a.type));
   console.log(`Total matching alerts from Acronis: ${alerts.length}\n`);
 
   const wouldTicket: any[] = [];
@@ -60,11 +61,7 @@ async function main() {
       || alert.details?.error?.text?.substring(0, 200)
       || 'Unknown error';
 
-    const reasonLower = failureReason.toLowerCase();
     const isO365 = failureReason.startsWith('O365Mailbox');
-    const isAccessDenied = reasonLower.includes('access denied')
-      || reasonLower === 'access is denied'
-      || reasonLower === 'access to the file is denied.';
     const isOneDrive = failureReason.startsWith('OD');
 
     const entry = {
@@ -78,8 +75,6 @@ async function main() {
 
     if (isO365) {
       filtered.push({ ...entry, filteredBecause: 'O365 Mailbox (noise)' });
-    } else if (isAccessDenied) {
-      filtered.push({ ...entry, filteredBecause: 'Access denied (noise)' });
     } else if (isOneDrive) {
       filtered.push({ ...entry, filteredBecause: 'OneDrive (no ticket, stored only)' });
     } else {

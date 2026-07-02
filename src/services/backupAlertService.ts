@@ -97,19 +97,6 @@ export async function syncBackupAlerts(): Promise<{
         continue;
       }
 
-      // Access denied failures are noise — skip entirely.
-      const reason = alertData.failure_reason?.toLowerCase() ?? '';
-      const isAccessDeniedAlert =
-        reason.includes('access denied') ||
-        reason === 'access is denied' ||
-        reason === 'access to the file is denied.';
-      if (isAccessDeniedAlert) {
-        console.log(
-          `Ignoring access denied alert: ${alertData.tenant_name} / ${alertData.device_name}`
-        );
-        continue;
-      }
-
       // OneDrive-related failures are stored in DB but do not create Zoho tickets.
       const isOneDriveAlert = alertData.failure_reason?.startsWith('OD') ?? false;
       if (isOneDriveAlert) {
