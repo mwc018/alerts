@@ -15,6 +15,20 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// Manual trigger — hit /run-sync in a browser to fire the sync immediately
+app.get('/run-sync', async (_req, res) => {
+  console.log(`[${new Date().toISOString()}] Manual sync triggered via /run-sync`);
+  res.json({ status: 'started', message: 'Sync running — check Render logs for results' });
+  try {
+    const result = await syncBackupAlerts();
+    console.log(
+      `[${new Date().toISOString()}] Manual sync complete — added: ${result.added}, updated: ${result.updated}, resolved: ${result.resolved}`
+    );
+  } catch (error: any) {
+    console.error(`[${new Date().toISOString()}] Manual sync failed:`, error.message);
+  }
+});
+
 // Daily sync at 7:30 AM Central Time
 cron.schedule(
   '30 7 * * *',
