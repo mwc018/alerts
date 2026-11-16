@@ -1,11 +1,24 @@
 import express from 'express';
+import path from 'path';
 import cron from 'node-cron';
 import { syncBackupAlerts } from './services/backupAlertService.js';
 import { syncStorageQuotaAlerts } from './services/storageAlertService.js';
+import clientRoutes from './routes/clientRoutes.js';
 import databaseService from './services/databaseService.js';
 import config from './config/config.js';
 
+// In dist/, __dirname is ./dist — public/ is one level up at the project root
+const publicDir = path.resolve(process.cwd(), 'public');
+
 const app = express();
+app.use(express.json());
+app.use(express.static(publicDir));
+
+app.use('/api/clients', clientRoutes);
+
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'admin.html'));
+});
 
 app.get('/health', (_req, res) => {
   res.json({

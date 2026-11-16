@@ -1,7 +1,6 @@
 import { getStorageQuotaAlerts } from './acronisService.js';
 import databaseService from './databaseService.js';
 import { createTicket, closeTicket, addTicketComment } from './zohoService.js';
-import { lookupBySiteName } from './googleSheetsService.js';
 import config from '../config/config.js';
 
 const DEFAULT_THRESHOLD = 80;
@@ -24,8 +23,8 @@ export async function syncStorageQuotaAlerts(): Promise<{
   let suppressed = 0;
 
   for (const alert of acronisAlerts) {
-    const clientMapping = await lookupBySiteName(alert.tenantName);
-    const threshold = clientMapping?.storageThreshold ?? DEFAULT_THRESHOLD;
+    const clientMapping = databaseService.lookupClientBySiteName(alert.tenantName);
+    const threshold = clientMapping?.storage_threshold ?? DEFAULT_THRESHOLD;
 
     // StorageQuotaExceeded always alerts regardless of threshold
     const meetsThreshold = alert.alertType === 'StorageQuotaExceeded' || alert.percentUsed >= threshold;
@@ -66,11 +65,11 @@ export async function syncStorageQuotaAlerts(): Promise<{
 
     try {
       const subject = buildSubject(alert);
-      const description = buildDescription(alert, threshold, clientMapping?.zohoAccountName);
+      const description = buildDescription(alert, threshold, clientMapping?.zoho_account_name);
 
       if (clientMapping) {
         console.log(
-          `[StorageAlert] Matched "${alert.tenantName}" → ${clientMapping.zohoAccountName} (${clientMapping.clientEmail})`
+          `[StorageAlert] Matched "${alert.tenantName}" → ${clientMapping.zoho_account_name} (${clientMapping.client_email})`
         );
       } else {
         console.warn(`[StorageAlert] No client mapping for "${alert.tenantName}" — using fallback contact`);
@@ -82,10 +81,10 @@ export async function syncStorageQuotaAlerts(): Promise<{
         subject: clientMapping ? subject : `[UNMATCHED SITE] ${subject}`,
         description: clientMapping
           ? description
-          : description + '\n\n<p style="color:#cc0000;"><strong>⚠ No company found in Google Sheet for this site. Please update the client mapping.</strong></p>',
-        contactEmail: clientMapping?.clientEmail || 'jreynolds@ttalx.com',
-        contactName: clientMapping?.zohoAccountName || alert.tenantName,
-        accountId: clientMapping?.zohoAccountId,
+          : description + '\n\n<p style="color:#cc0000;"><strong>⚠ No company found in client database for this site. Please add it at /admin.</strong></p>',
+        contactEmail: clientMapping?.client_email || 'jreynolds@ttalx.com',
+        contactName: clientMapping?.zoho_account_name || alert.tenantName,
+        accountId: clientMapping?.zoho_account_id,
         status: 'Open',
         priority,
       });

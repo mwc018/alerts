@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client Mappings</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --border: #d1d5db;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --success: #16a34a;
+      --warn: #d97706;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 18px; font-weight: 600; }
+    header p { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+    .toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+    button { cursor: pointer; border: none; border-radius: var(--radius); padding: 8px 16px; font-size: 13px; font-weight: 500; transition: background 0.15s; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: var(--danger-hover); }
+    .btn-ghost { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+    .btn-ghost:hover { background: #eff6ff; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f9fafb; text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: var(--success); }
+    .badge-yellow { background: #fef3c7; color: var(--warn); }
+    .badge-red { background: #fee2e2; color: var(--danger); }
+    .actions { display: flex; gap: 6px; }
+    .empty { text-align: center; padding: 48px; color: var(--text-muted); }
+    /* Modal */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; padding: 16px; }
+    .overlay.open { display: flex; }
+    .modal { background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 540px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .modal-header { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: center; }
+    .modal-header h2 { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 20px; color: var(--text-muted); cursor: pointer; padding: 0; line-height: 1; }
+    .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-footer { padding: 0 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+    label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
+    input, select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 13px; color: var(--text); background: var(--surface); }
+    input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px #bfdbfe; }
+    .threshold-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .error-msg { color: var(--danger); font-size: 12px; padding: 8px 12px; background: #fee2e2; border-radius: 6px; }
+    .loading { opacity: 0.5; pointer-events: none; }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Client Mappings</h1>
+    <p>Configure contact details and storage alert thresholds per client</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="toolbar">
+    <button class="btn-primary" onclick="openModal()">+ Add Client</button>
+  </div>
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>Acronis Site Name</th>
+          <th>Zoho Account</th>
+          <th>Contact Email</th>
+          <th>Engineer</th>
+          <th>Storage Threshold</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Client</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="modal-error" class="error-msg" style="display:none"></div>
+      <input type="hidden" id="edit-id" />
+      <div>
+        <label>Acronis Site Name *</label>
+        <input id="f-site-name" placeholder="e.g. Acme Corporation" />
+      </div>
+      <div>
+        <label>Zoho Account Name</label>
+        <input id="f-zoho-account-name" placeholder="Name as it appears in Zoho Desk" />
+      </div>
+      <div>
+        <label>Zoho Account ID</label>
+        <input id="f-zoho-account-id" placeholder="Zoho account ID" />
+      </div>
+      <div>
+        <label>Contact Email</label>
+        <input id="f-client-email" type="email" placeholder="client@example.com" />
+      </div>
+      <div>
+        <label>Assigned Engineer</label>
+        <input id="f-client-engineer" placeholder="Engineer name" />
+      </div>
+      <div>
+        <label>Zoho Engineer ID</label>
+        <input id="f-zoho-engineer-id" placeholder="Zoho agent ID" />
+      </div>
+      <div>
+        <label>Storage Alert Threshold (%)</label>
+        <input id="f-storage-threshold" type="number" min="1" max="100" value="80" />
+        <p class="threshold-hint">Alert is sent when storage reaches this percentage. Default is 80. Raise for clients where 80% warnings are premature (e.g., 95 for a dealership).</p>
+      </div>
+      <div>
+        <label>Notes</label>
+        <input id="f-notes" placeholder="Optional internal notes" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modal-save" onclick="saveClient()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let clients = [];
+
+  async function load() {
+    try {
+      const r = await fetch('/api/clients');
+      clients = await r.json();
+      render();
+    } catch (e) {
+      document.getElementById('tbody').innerHTML = '<tr><td colspan="6" class="empty">Failed to load clients.</td></tr>';
+    }
+  }
+
+  function thresholdBadge(t) {
+    if (t >= 95) return `<span class="badge badge-green">${t}%</span>`;
+    if (t >= 85) return `<span class="badge badge-yellow">${t}%</span>`;
+    return `<span class="badge badge-red">${t}%</span>`;
+  }
+
+  function render() {
+    const tbody = document.getElementById('tbody');
+    if (!clients.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No clients yet. Click "Add Client" to get started.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = clients.map(c => `
+      <tr>
+        <td><strong>${esc(c.site_name)}</strong>${c.notes ? `<br><span style="font-size:11px;color:#9ca3af">${esc(c.notes)}</span>` : ''}</td>
+        <td>${esc(c.zoho_account_name || '—')}</td>
+        <td>${esc(c.client_email || '—')}</td>
+        <td>${esc(c.client_engineer || '—')}</td>
+        <td>${thresholdBadge(c.storage_threshold)}</td>
+        <td>
+          <div class="actions">
+            <button class="btn-ghost btn-sm" onclick="openModal(${c.id})">Edit</button>
+            <button class="btn-danger btn-sm" onclick="deleteClient(${c.id}, '${esc(c.site_name)}')">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function openModal(id) {
+    document.getElementById('modal-error').style.display = 'none';
+    if (id) {
+      const c = clients.find(x => x.id === id);
+      document.getElementById('modal-title').textContent = 'Edit Client';
+      document.getElementById('edit-id').value = id;
+      document.getElementById('f-site-name').value = c.site_name || '';
+      document.getElementById('f-zoho-account-name').value = c.zoho_account_name || '';
+      document.getElementById('f-zoho-account-id').value = c.zoho_account_id || '';
+      document.getElementById('f-client-email').value = c.client_email || '';
+      document.getElementById('f-client-engineer').value = c.client_engineer || '';
+      document.getElementById('f-zoho-engineer-id').value = c.zoho_engineer_id || '';
+      document.getElementById('f-storage-threshold').value = c.storage_threshold ?? 80;
+      document.getElementById('f-notes').value = c.notes || '';
+    } else {
+      document.getElementById('modal-title').textContent = 'Add Client';
+      document.getElementById('edit-id').value = '';
+      ['f-site-name','f-zoho-account-name','f-zoho-account-id','f-client-email','f-client-engineer','f-zoho-engineer-id','f-notes'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('f-storage-threshold').value = 80;
+    }
+    document.getElementById('overlay').classList.add('open');
+    document.getElementById('f-site-name').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('overlay').classList.remove('open');
+  }
+
+  async function saveClient() {
+    const errEl = document.getElementById('modal-error');
+    errEl.style.display = 'none';
+
+    const site_name = document.getElementById('f-site-name').value.trim();
+    if (!site_name) { errEl.textContent = 'Acronis Site Name is required.'; errEl.style.display = 'block'; return; }
+
+    const threshold = parseInt(document.getElementById('f-storage-threshold').value, 10);
+    if (isNaN(threshold) || threshold < 1 || threshold > 100) {
+      errEl.textContent = 'Storage threshold must be between 1 and 100.'; errEl.style.display = 'block'; return;
+    }
+
+    const body = {
+      site_name,
+      zoho_account_name: document.getElementById('f-zoho-account-name').value.trim() || null,
+      zoho_account_id: document.getElementById('f-zoho-account-id').value.trim() || null,
+      client_email: document.getElementById('f-client-email').value.trim() || null,
+      client_engineer: document.getElementById('f-client-engineer').value.trim() || null,
+      zoho_engineer_id: document.getElementById('f-zoho-engineer-id').value.trim() || null,
+      storage_threshold: threshold,
+      notes: document.getElementById('f-notes').value.trim() || null,
+    };
+
+    const id = document.getElementById('edit-id').value;
+    const btn = document.getElementById('modal-save');
+    btn.classList.add('loading');
+
+    try {
+      const r = await fetch(id ? `/api/clients/${id}` : '/api/clients', {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (!r.ok) { errEl.textContent = data.error || 'Save failed.'; errEl.style.display = 'block'; return; }
+      closeModal();
+      await load();
+    } catch (e) {
+      errEl.textContent = 'Network error — please try again.'; errEl.style.display = 'block';
+    } finally {
+      btn.classList.remove('loading');
+    }
+  }
+
+  async function deleteClient(id, name) {
+    if (!confirm(`Delete client "${name}"?\n\nThis will not affect any existing open Zoho tickets.`)) return;
+    await fetch(`/api/clients/${id}`, { method: 'DELETE' });
+    await load();
+  }
+
+  // Close modal on overlay click
+  document.getElementById('overlay').addEventListener('click', e => { if (e.target === document.getElementById('overlay')) closeModal(); });
+
+  // Enter key in modal saves
+  document.getElementById('overlay').addEventListener('keydown', e => { if (e.key === 'Enter' && document.activeElement.tagName !== 'BUTTON') saveClient(); if (e.key === 'Escape') closeModal(); });
+
+  load();
+</script>
+</body>
+</html>

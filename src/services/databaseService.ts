@@ -42,6 +42,22 @@ class DatabaseService {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_name TEXT NOT NULL UNIQUE,
+        client_email TEXT,
+        zoho_account_id TEXT,
+        zoho_account_name TEXT,
+        client_engineer TEXT,
+        zoho_engineer_id TEXT,
+        storage_threshold INTEGER NOT NULL DEFAULT 80,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `);
+
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS storage_quota_alerts (
         alert_id TEXT PRIMARY KEY,
         alert_type TEXT NOT NULL,
@@ -177,6 +193,103 @@ class DatabaseService {
 
   deleteBackupAlert(alertId: string): void {
     this.db.prepare('DELETE FROM backup_alerts WHERE alert_id = ?').run(alertId);
+  }
+
+  // ── Client mappings ───────────────────────────────────────────────────
+
+  getAllClients(): any[] {
+    return this.db.prepare('SELECT * FROM clients ORDER BY site_name ASC').all();
+  }
+
+  getClientById(id: number): any {
+    return this.db.prepare('SELECT * FROM clients WHERE id = ?').get(id);
+  }
+
+  lookupClientBySiteName(siteName: string): any {
+    // Tier 1: exact match
+    let row = this.db.prepare('SELECT * FROM clients WHERE site_name = ?').get(siteName) as any;
+    if (row) return row;
+    // Tier 2: case-insensitive
+    row = this.db.prepare('SELECT * FROM clients WHERE LOWER(site_name) = LOWER(?)').get(siteName) as any;
+    if (row) return row;
+    // Tier 3: substring — site_name contains siteName or siteName contains site_name
+    const all = this.db.prepare('SELECT * FROM clients').all() as any[];
+    const lower = siteName.toLowerCase();
+    return all.find(
+      (c) => c.site_name.toLowerCase().includes(lower) || lower.includes(c.site_name.toLowerCase())
+    ) || null;
+  }
+
+  createClient(data: {
+    site_name: string;
+    client_email?: string;
+    zoho_account_id?: string;
+    zoho_account_name?: string;
+    client_engineer?: string;
+    zoho_engineer_id?: string;
+    storage_threshold?: number;
+    notes?: string;
+  }): any {
+    const result = this.db
+      .prepare(
+        `INSERT INTO clients
+           (site_name, client_email, zoho_account_id, zoho_account_name,
+            client_engineer, zoho_engineer_id, storage_threshold, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        data.site_name,
+        data.client_email || null,
+        data.zoho_account_id || null,
+        data.zoho_account_name || null,
+        data.client_engineer || null,
+        data.zoho_engineer_id || null,
+        data.storage_threshold ?? 80,
+        data.notes || null
+      );
+    return this.getClientById(result.lastInsertRowid as number);
+  }
+
+  updateClient(
+    id: number,
+    data: {
+      site_name?: string;
+      client_email?: string;
+      zoho_account_id?: string;
+      zoho_account_name?: string;
+      client_engineer?: string;
+      zoho_engineer_id?: string;
+      storage_threshold?: number;
+      notes?: string;
+    }
+  ): any {
+    const existing = this.getClientById(id);
+    if (!existing) return null;
+    this.db
+      .prepare(
+        `UPDATE clients SET
+           site_name = ?, client_email = ?, zoho_account_id = ?, zoho_account_name = ?,
+           client_engineer = ?, zoho_engineer_id = ?, storage_threshold = ?, notes = ?,
+           updated_at = datetime('now')
+         WHERE id = ?`
+      )
+      .run(
+        data.site_name ?? existing.site_name,
+        data.client_email ?? existing.client_email,
+        data.zoho_account_id ?? existing.zoho_account_id,
+        data.zoho_account_name ?? existing.zoho_account_name,
+        data.client_engineer ?? existing.client_engineer,
+        data.zoho_engineer_id ?? existing.zoho_engineer_id,
+        data.storage_threshold ?? existing.storage_threshold,
+        data.notes ?? existing.notes,
+        id
+      );
+    return this.getClientById(id);
+  }
+
+  deleteClient(id: number): boolean {
+    const result = this.db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    return result.changes > 0;
   }
 
   // ── Storage quota alerts ──────────────────────────────────────────────

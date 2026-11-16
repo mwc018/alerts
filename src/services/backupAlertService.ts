@@ -1,7 +1,6 @@
 import { getActionableBackupAlerts } from './acronisService.js';
 import databaseService from './databaseService.js';
 import { createTicket, closeTicket, addTicketComment } from './zohoService.js';
-import { lookupBySiteName } from './googleSheetsService.js';
 import config from '../config/config.js';
 
 interface BackupAlert {
@@ -119,10 +118,10 @@ export async function syncBackupAlerts(): Promise<{
           const subject = getAlertSubject(alert, alertData.device_name, alertData.tenant_name);
           const description = buildAlertDescription(alertData, alert.type);
 
-          const clientMapping = await lookupBySiteName(alertData.tenant_name);
+          const clientMapping = databaseService.lookupClientBySiteName(alertData.tenant_name);
           if (clientMapping) {
             console.log(
-              `[BackupAlert] Matched site "${alertData.tenant_name}" → ${clientMapping.zohoAccountName} (${clientMapping.clientEmail})`
+              `[BackupAlert] Matched site "${alertData.tenant_name}" → ${clientMapping.zoho_account_name} (${clientMapping.client_email})`
             );
           } else {
             console.warn(
@@ -133,14 +132,14 @@ export async function syncBackupAlerts(): Promise<{
           const finalDescription = clientMapping
             ? description
             : description +
-              '\n\n<p style="color:#cc0000;"><strong>⚠ No company found in Google Sheet for this site. Please update the client mapping.</strong></p>';
+              '\n\n<p style="color:#cc0000;"><strong>⚠ No company found in client database for this site. Please add it at /admin.</strong></p>';
 
           const zohoTicket = await createTicket({
             subject: clientMapping ? subject : `[UNMATCHED SITE] ${subject}`,
             description: finalDescription,
-            contactEmail: clientMapping?.clientEmail || 'jreynolds@ttalx.com',
-            contactName: clientMapping?.zohoAccountName || alertData.tenant_name,
-            accountId: clientMapping?.zohoAccountId,
+            contactEmail: clientMapping?.client_email || 'jreynolds@ttalx.com',
+            contactName: clientMapping?.zoho_account_name || alertData.tenant_name,
+            accountId: clientMapping?.zoho_account_id,
             status: 'Open',
             priority: alertData.backup_type === 'Cloud' ? 'High' : 'Medium',
           });
