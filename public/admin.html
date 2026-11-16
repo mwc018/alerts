@@ -160,9 +160,9 @@
   }
 
   function thresholdBadge(t) {
-    if (t >= 95) return `<span class="badge badge-green">${t}%</span>`;
-    if (t >= 85) return `<span class="badge badge-yellow">${t}%</span>`;
-    return `<span class="badge badge-red">${t}%</span>`;
+    if (t >= 95) return `<span class="badge badge-red">${t}%</span>`;
+    if (t >= 80) return `<span class="badge badge-yellow">${t}%</span>`;
+    return `<span class="badge badge-green">${t}%</span>`;
   }
 
   function render() {
