@@ -1,10 +1,43 @@
 import { Router } from 'express';
 import databaseService from '../services/databaseService.js';
+import { getStorageQuotaAlerts } from '../services/acronisService.js';
 
 const router = Router();
 
 router.get('/', (_req, res) => {
   res.json(databaseService.getAllClients());
+});
+
+// Live storage status from Acronis merged with per-client thresholds from DB
+router.get('/storage-status', async (_req, res) => {
+  try {
+    const alerts = await getStorageQuotaAlerts();
+    const clients = databaseService.getAllClients();
+    const clientMap = new Map(clients.map((c: any) => [c.site_name.toLowerCase(), c]));
+
+    const rows = alerts.map((a) => {
+      const match = clients.find((c: any) =>
+        c.site_name.toLowerCase() === a.tenantName.toLowerCase() ||
+        c.site_name.toLowerCase().includes(a.tenantName.toLowerCase()) ||
+        a.tenantName.toLowerCase().includes(c.site_name.toLowerCase())
+      );
+      return {
+        siteName: a.tenantName,
+        tenantId: a.tenantId,
+        tenantUuid: a.tenantUuid,
+        percentUsed: a.percentUsed,
+        usedFormatted: a.usedFormatted,
+        quotaFormatted: a.quotaFormatted,
+        alertType: a.alertType,
+        threshold: match?.storage_threshold ?? 80,
+        clientDbId: match?.id ?? null,
+      };
+    });
+
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post('/', (req, res) => {
