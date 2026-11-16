@@ -31,11 +31,21 @@ router.get('/storage-status', async (req, res) => {
       return;
     }
 
-    // Refresh from Acronis and persist to DB
+    // Refresh from Acronis, persist to DB, and record daily history snapshot
     const tenants = await getAllTenantsWithStorage(true);
     const rows = tenants.map((a) => {
       const saved = databaseService.upsertClientFromAcronis({
         tenant_id: a.tenantId,
+        tenant_uuid: a.tenantUuid,
+        site_name: a.tenantName,
+        percent_used: a.percentUsed,
+        used_bytes: a.usedBytes,
+        quota_bytes: a.quotaBytes,
+        used_formatted: a.usedFormatted,
+        quota_formatted: a.quotaFormatted,
+        alert_type: a.alertType,
+      });
+      databaseService.insertStorageSnapshot({
         tenant_uuid: a.tenantUuid,
         site_name: a.tenantName,
         percent_used: a.percentUsed,

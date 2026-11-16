@@ -85,6 +85,23 @@ class DatabaseService {
     }
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS storage_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_uuid TEXT NOT NULL,
+        site_name TEXT NOT NULL,
+        percent_used INTEGER NOT NULL DEFAULT 0,
+        used_bytes INTEGER NOT NULL DEFAULT 0,
+        quota_bytes INTEGER NOT NULL DEFAULT 0,
+        used_formatted TEXT,
+        quota_formatted TEXT,
+        alert_type TEXT DEFAULT 'None',
+        snapshot_date TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(tenant_uuid, snapshot_date)
+      )
+    `);
+
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS storage_quota_alerts (
         alert_id TEXT PRIMARY KEY,
         alert_type TEXT NOT NULL,
@@ -370,6 +387,61 @@ class DatabaseService {
         );
       return this.getClientById(result.lastInsertRowid as number);
     }
+  }
+
+  // ── Storage history snapshots ────────────────────────────────────────
+
+  insertStorageSnapshot(data: {
+    tenant_uuid: string;
+    site_name: string;
+    percent_used: number;
+    used_bytes: number;
+    quota_bytes: number;
+    used_formatted: string;
+    quota_formatted: string;
+    alert_type: string;
+  }): void {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    this.db
+      .prepare(
+        `INSERT INTO storage_history
+           (tenant_uuid, site_name, percent_used, used_bytes, quota_bytes,
+            used_formatted, quota_formatted, alert_type, snapshot_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(tenant_uuid, snapshot_date) DO UPDATE SET
+           percent_used   = excluded.percent_used,
+           used_bytes     = excluded.used_bytes,
+           quota_bytes    = excluded.quota_bytes,
+           used_formatted = excluded.used_formatted,
+           quota_formatted = excluded.quota_formatted,
+           alert_type     = excluded.alert_type`
+      )
+      .run(
+        data.tenant_uuid, data.site_name,
+        data.percent_used, data.used_bytes, data.quota_bytes,
+        data.used_formatted, data.quota_formatted,
+        data.alert_type, today
+      );
+  }
+
+  getStorageHistory(tenantUuid?: string, days = 90): any[] {
+    if (tenantUuid) {
+      return this.db
+        .prepare(
+          `SELECT * FROM storage_history
+           WHERE tenant_uuid = ?
+             AND snapshot_date >= date('now', ? || ' days')
+           ORDER BY snapshot_date ASC`
+        )
+        .all(tenantUuid, `-${days}`);
+    }
+    return this.db
+      .prepare(
+        `SELECT * FROM storage_history
+         WHERE snapshot_date >= date('now', ? || ' days')
+         ORDER BY site_name ASC, snapshot_date ASC`
+      )
+      .all(`-${days}`);
   }
 
   // ── Storage quota alerts ──────────────────────────────────────────────

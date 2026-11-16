@@ -1,4 +1,4 @@
-import { getStorageQuotaAlerts } from './acronisService.js';
+import { getStorageQuotaAlerts, getAllTenantsWithStorage } from './acronisService.js';
 import databaseService from './databaseService.js';
 import { createTicket, closeTicket, addTicketComment } from './zohoService.js';
 import config from '../config/config.js';
@@ -128,6 +128,24 @@ export async function syncStorageQuotaAlerts(): Promise<{
   }
 
   return { added, updated, resolved, suppressed };
+}
+
+export async function takeStorageSnapshots(): Promise<number> {
+  const tenants = await getAllTenantsWithStorage(true);
+  for (const t of tenants) {
+    databaseService.insertStorageSnapshot({
+      tenant_uuid: t.tenantUuid,
+      site_name: t.tenantName,
+      percent_used: t.percentUsed,
+      used_bytes: t.usedBytes,
+      quota_bytes: t.quotaBytes,
+      used_formatted: t.usedFormatted,
+      quota_formatted: t.quotaFormatted,
+      alert_type: t.alertType,
+    });
+  }
+  console.log(`[StorageSnapshot] Recorded ${tenants.length} snapshots for ${new Date().toISOString().split('T')[0]}`);
+  return tenants.length;
 }
 
 function buildSubject(alert: { alertType: string; tenantName: string; percentUsed: number; storageType: string }): string {

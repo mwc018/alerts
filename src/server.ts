@@ -3,7 +3,7 @@ import path from 'path';
 import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
 import { syncBackupAlerts } from './services/backupAlertService.js';
-import { syncStorageQuotaAlerts } from './services/storageAlertService.js';
+import { syncStorageQuotaAlerts, takeStorageSnapshots } from './services/storageAlertService.js';
 import clientRoutes from './routes/clientRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import { requireAuth, requireAuthApi } from './middleware/requireAuth.js';
@@ -52,12 +52,13 @@ app.get('/run-sync', async (_req, res) => {
   console.log(`[${new Date().toISOString()}] Manual sync triggered via /run-sync`);
   res.json({ status: 'started', message: 'Sync running — check Render logs for results' });
   try {
-    const [backupResult, storageResult] = await Promise.all([
+    const [backupResult, storageResult, snapshotCount] = await Promise.all([
       syncBackupAlerts(),
       syncStorageQuotaAlerts(),
+      takeStorageSnapshots(),
     ]);
     console.log(
-      `[${new Date().toISOString()}] Manual sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed}`
+      `[${new Date().toISOString()}] Manual sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed} | snapshots: ${snapshotCount}`
     );
   } catch (error: any) {
     console.error(`[${new Date().toISOString()}] Manual sync failed:`, error.message);
@@ -70,12 +71,13 @@ cron.schedule(
   async () => {
     console.log(`[${new Date().toISOString()}] Starting daily backup alert sync...`);
     try {
-      const [backupResult, storageResult] = await Promise.all([
+      const [backupResult, storageResult, snapshotCount] = await Promise.all([
         syncBackupAlerts(),
         syncStorageQuotaAlerts(),
+        takeStorageSnapshots(),
       ]);
       console.log(
-        `[${new Date().toISOString()}] Sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed}`
+        `[${new Date().toISOString()}] Sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed} | snapshots: ${snapshotCount}`
       );
     } catch (error: any) {
       console.error(`[${new Date().toISOString()}] Sync failed:`, error.message);
