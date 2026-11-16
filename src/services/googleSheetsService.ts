@@ -8,6 +8,8 @@ export interface ClientMapping {
   zohoAccountName: string;
   clientEngineer: string;
   zohoEngineerID: string;
+  // Column G — storage alert threshold %. If blank, the default (80) is used.
+  storageThreshold?: number;
 }
 
 let _cache: ClientMapping[] = [];
@@ -42,7 +44,7 @@ async function loadClientMappings(): Promise<ClientMapping[]> {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.googleSheets.spreadsheetId,
       // gid=266636608 corresponds to the client mapping sheet
-      range: 'Client Mapping!A:F',
+      range: 'Client Mapping!A:G',
     });
 
     const rows = response.data.values || [];
@@ -54,6 +56,7 @@ async function loadClientMappings(): Promise<ClientMapping[]> {
       zohoAccountName: row[3] || '',
       clientEngineer: row[4] || '',
       zohoEngineerID: row[5] || '',
+      storageThreshold: row[6] ? parseInt(row[6], 10) : undefined,
     }));
     _cacheLoadedAt = now;
     console.log(`[GoogleSheets] Loaded ${_cache.length} client mappings`);

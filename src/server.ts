@@ -1,6 +1,7 @@
 import express from 'express';
 import cron from 'node-cron';
 import { syncBackupAlerts } from './services/backupAlertService.js';
+import { syncStorageQuotaAlerts } from './services/storageAlertService.js';
 import databaseService from './services/databaseService.js';
 import config from './config/config.js';
 
@@ -20,9 +21,12 @@ app.get('/run-sync', async (_req, res) => {
   console.log(`[${new Date().toISOString()}] Manual sync triggered via /run-sync`);
   res.json({ status: 'started', message: 'Sync running — check Render logs for results' });
   try {
-    const result = await syncBackupAlerts();
+    const [backupResult, storageResult] = await Promise.all([
+      syncBackupAlerts(),
+      syncStorageQuotaAlerts(),
+    ]);
     console.log(
-      `[${new Date().toISOString()}] Manual sync complete — added: ${result.added}, updated: ${result.updated}, resolved: ${result.resolved}`
+      `[${new Date().toISOString()}] Manual sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed}`
     );
   } catch (error: any) {
     console.error(`[${new Date().toISOString()}] Manual sync failed:`, error.message);
@@ -35,9 +39,12 @@ cron.schedule(
   async () => {
     console.log(`[${new Date().toISOString()}] Starting daily backup alert sync...`);
     try {
-      const result = await syncBackupAlerts();
+      const [backupResult, storageResult] = await Promise.all([
+        syncBackupAlerts(),
+        syncStorageQuotaAlerts(),
+      ]);
       console.log(
-        `[${new Date().toISOString()}] Sync complete — added: ${result.added}, updated: ${result.updated}, resolved: ${result.resolved} | BackupFailed: ${result.failedCount}, DidNotStart: ${result.notStartedCount}`
+        `[${new Date().toISOString()}] Sync complete — backup: added=${backupResult.added} updated=${backupResult.updated} resolved=${backupResult.resolved} | storage: added=${storageResult.added} updated=${storageResult.updated} resolved=${storageResult.resolved} suppressed=${storageResult.suppressed}`
       );
     } catch (error: any) {
       console.error(`[${new Date().toISOString()}] Sync failed:`, error.message);

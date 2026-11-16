@@ -25,6 +25,7 @@ export interface AcronisAlert {
       fields?: {
         ResourceName?: string;
         TenantName?: string;
+        StorageType?: string;
       };
     };
   };
@@ -35,6 +36,21 @@ export interface AcronisAlert {
     uuid: string;
     name?: string;
   };
+}
+
+export interface StorageQuotaAlert {
+  alertId: string;
+  alertType: 'StorageQuotaAt80' | 'StorageQuotaExceeded';
+  tenantId: string;
+  tenantUuid: string;
+  tenantName: string;
+  storageType: string;
+  usedBytes: number;
+  quotaBytes: number;
+  percentUsed: number;
+  usedFormatted: string;
+  quotaFormatted: string;
+  alertedAt: string;
 }
 
 let tokenCache: AcronisToken | null = null;
@@ -79,6 +95,26 @@ async function getTenantInfo(uuid: string): Promise<{ name?: string }> {
   }
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function getTenantUsages(token: string, tenantUuid: string): Promise<any[]> {
+  try {
+    const response = await axios.get(
+      `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/usages`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    return response.data.items || [];
+  } catch {
+    return [];
+  }
+}
+
 const ACTIONABLE_TYPES = new Set(['BackupFailed', 'BackupDidNotStart', 'ProtectionServiceNotWorking']);
 
 export async function getActionableBackupAlerts(): Promise<AcronisAlert[]> {
@@ -105,4 +141,79 @@ export async function getActionableBackupAlerts(): Promise<AcronisAlert[]> {
   );
 
   return enriched;
+}
+
+export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
+  const token = await getAcronisToken();
+
+  // Fetch both storage alert types — single type param works; comma-separated does not
+  const [at80Resp, exceededResp] = await Promise.all([
+    axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts?type=StorageQuotaAt80`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts?type=StorageQuotaExceeded`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  ]);
+
+  const rawAlerts: AcronisAlert[] = [
+    ...(at80Resp.data.items || at80Resp.data.alerts || []),
+    ...(exceededResp.data.items || exceededResp.data.alerts || []),
+  ];
+
+  // Deduplicate by alert ID (shouldn't overlap but be safe)
+  const seen = new Set<string>();
+  const alerts = rawAlerts.filter((a) => {
+    if (seen.has(a.id)) return false;
+    seen.add(a.id);
+    return true;
+  });
+
+  // Enrich with actual usage percentages
+  const results: StorageQuotaAlert[] = [];
+
+  for (const alert of alerts) {
+    const tenantUuid = alert.tenant?.uuid || '';
+    const tenantId = alert.tenant?.id || '';
+    const tenantName =
+      alert.details?.error?.fields?.TenantName ||
+      alert.details?.errorMessage?.context?.tenantName ||
+      (tenantUuid ? (await getTenantInfo(tenantUuid)).name : undefined) ||
+      `Tenant ${tenantId}`;
+
+    const storageType = alert.details?.error?.fields?.StorageType || 'cloud';
+
+    let usedBytes = 0;
+    let quotaBytes = 0;
+
+    if (tenantUuid) {
+      const usages = await getTenantUsages(token, tenantUuid);
+      for (const item of usages) {
+        if (item.measurement_unit !== 'bytes') continue;
+        const quota = item.offering_item?.quota?.value;
+        if (!quota) continue;
+        usedBytes += item.value || 0;
+        quotaBytes += quota;
+      }
+    }
+
+    const percentUsed = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+
+    results.push({
+      alertId: alert.id,
+      alertType: alert.type as 'StorageQuotaAt80' | 'StorageQuotaExceeded',
+      tenantId,
+      tenantUuid,
+      tenantName: typeof tenantName === 'string' ? tenantName.replace(/\s*\([^)]*\)/g, '').trim() : String(tenantName),
+      storageType: storageType === 'cloud' ? 'Cloud' : storageType,
+      usedBytes,
+      quotaBytes,
+      percentUsed,
+      usedFormatted: formatBytes(usedBytes),
+      quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'Unknown',
+      alertedAt: alert.createdAt || alert.created_at || '',
+    });
+  }
+
+  return results.sort((a, b) => b.percentUsed - a.percentUsed);
 }

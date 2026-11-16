@@ -41,6 +41,28 @@ class DatabaseService {
       )
     `);
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS storage_quota_alerts (
+        alert_id TEXT PRIMARY KEY,
+        alert_type TEXT NOT NULL,
+        tenant_id TEXT,
+        tenant_uuid TEXT,
+        tenant_name TEXT,
+        storage_type TEXT,
+        percent_used INTEGER,
+        used_bytes INTEGER,
+        quota_bytes INTEGER,
+        threshold_pct INTEGER,
+        alerted_at TEXT,
+        status TEXT NOT NULL DEFAULT 'Open',
+        created_at TEXT DEFAULT (datetime('now')),
+        resolved_at TEXT,
+        zoho_ticket_id TEXT,
+        zoho_ticket_number TEXT,
+        zoho_ticket_url TEXT
+      )
+    `);
+
     // Run migrations for any existing databases missing the newer columns
     const cols = (this.db.pragma('table_info(backup_alerts)') as Array<{ name: string }>)
       .map((r) => r.name);
@@ -155,6 +177,82 @@ class DatabaseService {
 
   deleteBackupAlert(alertId: string): void {
     this.db.prepare('DELETE FROM backup_alerts WHERE alert_id = ?').run(alertId);
+  }
+
+  // ── Storage quota alerts ──────────────────────────────────────────────
+
+  upsertStorageQuotaAlert(data: {
+    alert_id: string;
+    alert_type: string;
+    tenant_id: string;
+    tenant_uuid: string;
+    tenant_name: string;
+    storage_type: string;
+    percent_used: number;
+    used_bytes: number;
+    quota_bytes: number;
+    threshold_pct: number;
+    alerted_at: string;
+  }): void {
+    const existing = this.db
+      .prepare('SELECT * FROM storage_quota_alerts WHERE alert_id = ?')
+      .get(data.alert_id) as any;
+
+    if (existing) {
+      if (existing.resolved_at) return;
+      this.db
+        .prepare(
+          `UPDATE storage_quota_alerts
+           SET percent_used = ?, used_bytes = ?, quota_bytes = ?, alerted_at = ?
+           WHERE alert_id = ?`
+        )
+        .run(data.percent_used, data.used_bytes, data.quota_bytes, data.alerted_at, data.alert_id);
+    } else {
+      this.db
+        .prepare(
+          `INSERT INTO storage_quota_alerts
+             (alert_id, alert_type, tenant_id, tenant_uuid, tenant_name, storage_type,
+              percent_used, used_bytes, quota_bytes, threshold_pct, alerted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          data.alert_id, data.alert_type, data.tenant_id, data.tenant_uuid,
+          data.tenant_name, data.storage_type, data.percent_used, data.used_bytes,
+          data.quota_bytes, data.threshold_pct, data.alerted_at
+        );
+    }
+  }
+
+  getAllStorageQuotaAlerts(includeResolved = false): any[] {
+    const sql = includeResolved
+      ? 'SELECT * FROM storage_quota_alerts ORDER BY percent_used DESC'
+      : 'SELECT * FROM storage_quota_alerts WHERE resolved_at IS NULL ORDER BY percent_used DESC';
+    return this.db.prepare(sql).all();
+  }
+
+  updateStorageQuotaAlertZohoTicket(
+    alertId: string,
+    zohoTicketId: string,
+    zohoTicketNumber: string,
+    zohoTicketUrl: string
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE storage_quota_alerts
+         SET zoho_ticket_id = ?, zoho_ticket_number = ?, zoho_ticket_url = ?
+         WHERE alert_id = ?`
+      )
+      .run(zohoTicketId, zohoTicketNumber, zohoTicketUrl, alertId);
+  }
+
+  resolveStorageQuotaAlert(alertId: string): void {
+    this.db
+      .prepare(
+        `UPDATE storage_quota_alerts
+         SET resolved_at = datetime('now'), status = 'Resolved'
+         WHERE alert_id = ?`
+      )
+      .run(alertId);
   }
 
   close(): void {
