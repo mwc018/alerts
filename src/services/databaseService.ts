@@ -520,6 +520,15 @@ class DatabaseService {
       .run(alertId);
   }
 
+  runQuery(sql: string): { columns: string[]; rows: any[][] } {
+    const stmt = this.db.prepare(sql);
+    const raw = stmt.all() as Record<string, any>[];
+    if (raw.length === 0) return { columns: [], rows: [] };
+    const columns = Object.keys(raw[0]);
+    const rows = raw.slice(0, 1000).map((r) => columns.map((c) => r[c]));
+    return { columns, rows };
+  }
+
   close(): void {
     this.db.close();
   }

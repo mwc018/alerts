@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Data Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Data Explorer · sidebar + results layout */
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-hover: #f8fafc;
+      --surface-code: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #f1f5f9;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      --accent: #4f46e5;
+      --accent-bg: #eef2ff;
+      --accent-hover: #4338ca;
+      --accent-fg: #ffffff;
+      --green: #10b981;
+      --green-bg: #d1fae5;
+      --green-text: #065f46;
+      --red: #ef4444;
+      --red-bg: #fee2e2;
+      --red-text: #991b1b;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 20px 40px rgb(0 0 0 / 0.12), 0 4px 8px rgb(0 0 0 / 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0c1120; --surface: #161f30; --surface-hover: #1d2942;
+        --surface-code: #1d2942; --border: #2d3f56; --border-subtle: #1d2942;
+        --text: #f1f5f9; --text-muted: #8ca0bc; --text-subtle: #4a607d;
+        --accent: #6366f1; --accent-bg: #1e1b4b; --accent-hover: #818cf8;
+        --green-bg: #052e1c; --green-text: #34d399;
+        --red-bg: #2c0a0a; --red-text: #f87171;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #0c1120; --surface: #161f30; --surface-hover: #1d2942;
+      --surface-code: #1d2942; --border: #2d3f56; --border-subtle: #1d2942;
+      --text: #f1f5f9; --text-muted: #8ca0bc; --text-subtle: #4a607d;
+      --accent: #6366f1; --accent-bg: #1e1b4b; --accent-hover: #818cf8;
+      --green-bg: #052e1c; --green-text: #34d399;
+      --red-bg: #2c0a0a; --red-text: #f87171;
+      color-scheme: dark;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: sticky;
+      top: env(safe-area-inset-top, 0px);
+      z-index: 50;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 13px max(20px, env(safe-area-inset-right, 0px)) 13px max(20px, env(safe-area-inset-left, 0px));
+    }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(145deg, #4f46e5, #7c3aed);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(79,70,229,0.25);
+    }
+    .brand-icon svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+    .brand-text h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+    .brand-text p  { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+    .nav { display: flex; align-items: center; gap: 2px; }
+    .nav a {
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--text-muted);
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav a:hover { color: var(--text); background: var(--surface-hover); }
+    .nav a.active { color: var(--accent); background: var(--accent-bg); }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .btn-signout {
+      display: inline-flex; align-items: center;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 7px 12px; font-family: inherit; font-size: 13px; font-weight: 500;
+      text-decoration: none; transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-signout:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px max(20px, env(safe-area-inset-right, 0px)) 48px max(20px, env(safe-area-inset-left, 0px));
+      gap: 20px;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+    }
+
+    .preset-list { display: flex; flex-direction: column; }
+    .preset-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 11px 16px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .preset-btn:last-child { border-bottom: none; }
+    .preset-btn:hover { background: var(--surface-hover); color: var(--accent); }
+    .preset-btn.active { background: var(--accent-bg); color: var(--accent); }
+    .preset-desc {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .preset-btn:hover .preset-desc,
+    .preset-btn.active .preset-desc { color: var(--accent); opacity: 0.75; }
+
+    .sql-area { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+    textarea {
+      width: 100%;
+      background: var(--surface-code);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text);
+      resize: vertical;
+      min-height: 140px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .btn-run {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      background: var(--accent); color: var(--accent-fg);
+      border: none; border-radius: var(--radius-sm);
+      padding: 9px 16px;
+      font-family: inherit; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: background 0.15s, opacity 0.15s;
+      width: 100%;
+    }
+    .btn-run:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn-run:disabled { opacity: 0.55; cursor: default; }
+
+    .tables-list { padding: 10px 16px 14px; }
+    .table-chip {
+      display: inline-block;
+      background: var(--surface-code);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin: 3px 3px 0 0;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s;
+    }
+    .table-chip:hover { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+    /* ── Results ── */
+    .results-area { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+    .results-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 20px;
+    }
+    .results-info { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .results-info .count { font-weight: 600; color: var(--text); }
+    .btn-csv {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px; font-family: inherit; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-csv:hover { color: var(--text); border-color: var(--text-muted); }
+
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: auto;
+      max-height: calc(100vh - 240px);
+    }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--surface);
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-subtle);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface-hover); }
+    td.null-val { color: var(--text-subtle); font-style: italic; }
+    td.num-val { text-align: right; }
+
+    /* ── Empty / error states ── */
+    .state-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 56px 24px; gap: 6px;
+    }
+    .state-icon { width: 40px; height: 40px; color: var(--text-subtle); margin-bottom: 8px; }
+    .state-title { font-size: 14px; font-weight: 600; }
+    .state-sub { font-size: 13px; color: var(--text-muted); max-width: 320px; line-height: 1.6; }
+    .error-box {
+      background: var(--red-bg); color: var(--red-text);
+      border: 1px solid var(--red-bg);
+      border-radius: var(--radius); padding: 16px 20px;
+      font-size: 13px; font-family: 'JetBrains Mono', monospace; line-height: 1.6;
+    }
+    .capped-note {
+      background: var(--accent-bg); color: var(--accent);
+      border-radius: 6px; padding: 7px 12px;
+      font-size: 12px; font-weight: 500;
+    }
+
+    /* ── Spinner ── */
+    .spin {
+      display: inline-block; width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      .table-wrap { max-height: 60vh; }
+    }
+    @media (max-width: 600px) {
+      .header-inner { padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px)); }
+      .layout { padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px)); }
+      .brand-text p { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </div>
+        <div class="brand-text">
+          <h1>Storage Monitor</h1>
+          <p>Acronis cloud storage · ttalx.com</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="/admin">Dashboard</a>
+        <a href="/data" class="active">Data Explorer</a>
+      </nav>
+    </div>
+    <div class="header-right">
+      <a href="/auth/logout" class="btn-signout">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="panel">
+      <div class="panel-header">Preset Reports</div>
+      <div class="preset-list" id="presets"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Custom Query</div>
+      <div class="sql-area">
+        <textarea id="sql-input" spellcheck="false" placeholder="SELECT * FROM storage_history LIMIT 50"></textarea>
+        <button class="btn-run" id="run-btn" onclick="runQuery()">
+          Run Query
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">Tables</div>
+      <div class="tables-list">
+        <span class="table-chip" onclick="selectTable('storage_history')">storage_history</span>
+        <span class="table-chip" onclick="selectTable('clients')">clients</span>
+        <span class="table-chip" onclick="selectTable('storage_quota_alerts')">storage_quota_alerts</span>
+        <span class="table-chip" onclick="selectTable('backup_alerts')">backup_alerts</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Results -->
+  <section class="results-area">
+    <div class="results-meta" id="results-meta"></div>
+    <div id="results-container">
+      <div class="state-box">
+        <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+          <path d="M3 12a9 3 0 0 0 18 0"/>
+        </svg>
+        <p class="state-title">Select a preset or write a query</p>
+        <p class="state-sub">Results will appear here. Only SELECT queries are allowed.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const PRESETS = [
+    {
+      label: "Today's snapshot",
+      desc: 'All clients from the most recent sync',
+      sql: `SELECT site_name, percent_used, used_formatted, quota_formatted, alert_type, snapshot_date
+FROM storage_history
+WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM storage_history)
+ORDER BY percent_used DESC`
+    },
+    {
+      label: 'Last 30 days',
+      desc: 'Daily usage for every client',
+      sql: `SELECT site_name, snapshot_date, percent_used, used_formatted, quota_formatted
+FROM storage_history
+WHERE snapshot_date >= date('now', '-30 days')
+ORDER BY site_name ASC, snapshot_date ASC`
+    },
+    {
+      label: 'Month-over-month',
+      desc: 'Compare current usage vs 30 days ago',
+      sql: `SELECT
+  curr.site_name,
+  prev.percent_used     AS last_month_pct,
+  curr.percent_used     AS this_month_pct,
+  curr.percent_used - prev.percent_used AS growth_pct,
+  curr.used_formatted   AS current_usage,
+  curr.quota_formatted  AS quota
+FROM storage_history curr
+JOIN storage_history prev
+  ON curr.site_name = prev.site_name
+  AND prev.snapshot_date = (
+    SELECT MAX(snapshot_date) FROM storage_history
+    WHERE site_name = curr.site_name
+      AND snapshot_date <= date(curr.snapshot_date, '-28 days')
+  )
+WHERE curr.snapshot_date = (
+  SELECT MAX(snapshot_date) FROM storage_history WHERE site_name = curr.site_name
+)
+ORDER BY growth_pct DESC`
+    },
+    {
+      label: 'Fastest growing (90 days)',
+      desc: 'Biggest storage increase over the last quarter',
+      sql: `SELECT
+  site_name,
+  MIN(percent_used)                           AS start_pct,
+  MAX(percent_used)                           AS current_pct,
+  MAX(percent_used) - MIN(percent_used)       AS growth_pct,
+  MIN(used_formatted)                         AS start_usage,
+  MAX(used_formatted)                         AS current_usage,
+  COUNT(*)                                    AS data_points
+FROM storage_history
+WHERE snapshot_date >= date('now', '-90 days')
+GROUP BY site_name
+ORDER BY growth_pct DESC`
+    },
+    {
+      label: 'Over 80% (latest)',
+      desc: 'Clients currently at or above alert threshold',
+      sql: `SELECT site_name, percent_used, used_formatted, quota_formatted, alert_type, snapshot_date
+FROM storage_history
+WHERE (tenant_uuid, snapshot_date) IN (
+  SELECT tenant_uuid, MAX(snapshot_date) FROM storage_history GROUP BY tenant_uuid
+)
+AND percent_used >= 80
+ORDER BY percent_used DESC`
+    },
+    {
+      label: 'Yearly trend',
+      desc: 'One row per client per month (avg usage)',
+      sql: `SELECT
+  site_name,
+  strftime('%Y-%m', snapshot_date) AS month,
+  ROUND(AVG(percent_used), 1)      AS avg_pct,
+  MAX(used_formatted)              AS peak_usage,
+  MAX(quota_formatted)             AS quota
+FROM storage_history
+GROUP BY site_name, strftime('%Y-%m', snapshot_date)
+ORDER BY site_name ASC, month ASC`
+    },
+    {
+      label: 'Data coverage',
+      desc: 'How many clients were synced each day',
+      sql: `SELECT snapshot_date, COUNT(*) AS clients_synced
+FROM storage_history
+GROUP BY snapshot_date
+ORDER BY snapshot_date DESC
+LIMIT 60`
+    },
+  ];
+
+  let currentPreset = -1;
+
+  function buildPresets() {
+    const container = document.getElementById('presets');
+    container.innerHTML = PRESETS.map((p, i) => `
+      <button class="preset-btn" onclick="loadPreset(${i})">
+        ${esc(p.label)}
+        <span class="preset-desc">${esc(p.desc)}</span>
+      </button>
+    `).join('');
+  }
+
+  function loadPreset(i) {
+    currentPreset = i;
+    document.getElementById('sql-input').value = PRESETS[i].sql;
+    document.querySelectorAll('.preset-btn').forEach((b, j) =>
+      b.classList.toggle('active', i === j)
+    );
+    runQuery();
+  }
+
+  function selectTable(name) {
+    document.getElementById('sql-input').value = `SELECT * FROM ${name} LIMIT 100`;
+    currentPreset = -1;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    runQuery();
+  }
+
+  async function runQuery() {
+    const sql = document.getElementById('sql-input').value.trim();
+    if (!sql) return;
+
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>&nbsp;Running…';
+    document.getElementById('results-meta').innerHTML = '';
+    document.getElementById('results-container').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">Running query…</div>';
+
+    try {
+      const resp = await fetch('/api/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql }),
+      });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        document.getElementById('results-container').innerHTML =
+          `<div class="error-box">Error: ${esc(data.error)}</div>`;
+        document.getElementById('results-meta').innerHTML = '';
+        return;
+      }
+
+      renderResults(data);
+    } catch (e) {
+      document.getElementById('results-container').innerHTML =
+        `<div class="error-box">Request failed: ${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Query';
+    }
+  }
+
+  function renderResults({ columns, rows, ms, capped }) {
+    const meta = document.getElementById('results-meta');
+    const container = document.getElementById('results-container');
+
+    if (!columns.length) {
+      meta.innerHTML = '';
+      container.innerHTML = `
+        <div class="state-box">
+          <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/>
+          </svg>
+          <p class="state-title">No rows returned</p>
+          <p class="state-sub">The query ran successfully but returned no data.</p>
+        </div>`;
+      return;
+    }
+
+    meta.innerHTML = `
+      <span class="results-info">
+        <span class="count">${rows.length.toLocaleString()}</span> row${rows.length !== 1 ? 's' : ''}
+        &nbsp;·&nbsp;${columns.length} column${columns.length !== 1 ? 's' : ''}
+        &nbsp;·&nbsp;${ms}ms
+      </span>
+      <button class="btn-csv" onclick="exportCsv()">↓ Export CSV</button>
+    `;
+
+    const capNote = capped
+      ? `<div class="capped-note">Results capped at 1,000 rows. Add a LIMIT to your query to see specific rows.</div>`
+      : '';
+
+    const thead = `<thead><tr>${columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>`;
+    const tbody = `<tbody>${rows.map(row =>
+      `<tr>${row.map(v => {
+        if (v === null || v === undefined) return `<td class="null-val">null</td>`;
+        const isNum = typeof v === 'number';
+        return `<td class="${isNum ? 'num-val' : ''}">${esc(String(v))}</td>`;
+      }).join('')}</tr>`
+    ).join('')}</tbody>`;
+
+    container.innerHTML = `
+      ${capNote}
+      <div class="table-wrap"><table>${thead}${tbody}</table></div>
+    `;
+
+    // Store for CSV export
+    window._lastResult = { columns, rows };
+  }
+
+  function exportCsv() {
+    const { columns, rows } = window._lastResult || {};
+    if (!columns) return;
+    const lines = [
+      columns.map(c => `"${c}"`).join(','),
+      ...rows.map(row => row.map(v => `"${v === null ? '' : String(v).replace(/"/g, '""')}"`).join(',')),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `storage-export-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  document.getElementById('sql-input').addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      runQuery();
+    }
+    // Tab inserts spaces
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const el = e.target;
+      const s = el.selectionStart;
+      el.value = el.value.slice(0, s) + '  ' + el.value.slice(el.selectionEnd);
+      el.selectionStart = el.selectionEnd = s + 2;
+    }
+  });
+
+  buildPresets();
+</script>
+</body>
+</html>

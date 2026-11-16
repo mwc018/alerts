@@ -38,6 +38,27 @@ app.get('/admin', authEnabled ? requireAuth : (_req, _res, next) => next(), (_re
   res.sendFile(path.join(publicDir, 'admin.html'));
 });
 
+app.get('/data', authEnabled ? requireAuth : (_req, _res, next) => next(), (_req, res) => {
+  res.sendFile(path.join(publicDir, 'data.html'));
+});
+
+const SAFE_QUERY_RE = /^\s*SELECT\b/i;
+const DANGEROUS_RE = /\b(DROP|DELETE|UPDATE|INSERT|CREATE|ALTER|ATTACH|DETACH|PRAGMA|VACUUM|REINDEX)\b/i;
+
+app.post('/api/query', authEnabled ? requireAuthApi : (_req, _res, next) => next(), (req, res) => {
+  const sql: string = (req.body?.sql || '').trim();
+  if (!sql) { res.status(400).json({ error: 'No SQL provided' }); return; }
+  if (!SAFE_QUERY_RE.test(sql)) { res.status(400).json({ error: 'Only SELECT queries are allowed' }); return; }
+  if (DANGEROUS_RE.test(sql)) { res.status(400).json({ error: 'Query contains a disallowed keyword' }); return; }
+  try {
+    const start = Date.now();
+    const result = databaseService.runQuery(sql);
+    res.json({ ...result, ms: Date.now() - start, capped: result.rows.length === 1000 });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
