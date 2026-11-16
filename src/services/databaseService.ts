@@ -52,10 +52,37 @@ class DatabaseService {
         zoho_engineer_id TEXT,
         storage_threshold INTEGER NOT NULL DEFAULT 80,
         notes TEXT,
+        tenant_id TEXT,
+        tenant_uuid TEXT,
+        percent_used INTEGER DEFAULT 0,
+        used_bytes INTEGER DEFAULT 0,
+        quota_bytes INTEGER DEFAULT 0,
+        used_formatted TEXT,
+        quota_formatted TEXT,
+        alert_type TEXT DEFAULT 'None',
+        last_synced_at TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       )
     `);
+
+    // Migrate existing clients tables that are missing the storage columns
+    const clientCols = (this.db.pragma('table_info(clients)') as Array<{ name: string }>).map((r) => r.name);
+    for (const [col, def] of [
+      ['tenant_id', 'TEXT'],
+      ['tenant_uuid', 'TEXT'],
+      ['percent_used', 'INTEGER DEFAULT 0'],
+      ['used_bytes', 'INTEGER DEFAULT 0'],
+      ['quota_bytes', 'INTEGER DEFAULT 0'],
+      ['used_formatted', 'TEXT'],
+      ['quota_formatted', 'TEXT'],
+      ['alert_type', "TEXT DEFAULT 'None'"],
+      ['last_synced_at', 'TEXT'],
+    ] as [string, string][]) {
+      if (!clientCols.includes(col)) {
+        this.db.exec(`ALTER TABLE clients ADD COLUMN ${col} ${def}`);
+      }
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS storage_quota_alerts (
@@ -290,6 +317,59 @@ class DatabaseService {
   deleteClient(id: number): boolean {
     const result = this.db.prepare('DELETE FROM clients WHERE id = ?').run(id);
     return result.changes > 0;
+  }
+
+  upsertClientFromAcronis(data: {
+    tenant_id: string;
+    tenant_uuid: string;
+    site_name: string;
+    percent_used: number;
+    used_bytes: number;
+    quota_bytes: number;
+    used_formatted: string;
+    quota_formatted: string;
+    alert_type: string;
+  }): any {
+    const now = new Date().toISOString();
+    const existing = this.lookupClientBySiteName(data.site_name);
+
+    if (existing) {
+      this.db
+        .prepare(
+          `UPDATE clients SET
+             tenant_id = ?, tenant_uuid = ?,
+             percent_used = ?, used_bytes = ?, quota_bytes = ?,
+             used_formatted = ?, quota_formatted = ?,
+             alert_type = ?, last_synced_at = ?,
+             updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .run(
+          data.tenant_id, data.tenant_uuid,
+          data.percent_used, data.used_bytes, data.quota_bytes,
+          data.used_formatted, data.quota_formatted,
+          data.alert_type, now,
+          existing.id
+        );
+      return this.getClientById(existing.id);
+    } else {
+      const result = this.db
+        .prepare(
+          `INSERT INTO clients
+             (site_name, tenant_id, tenant_uuid,
+              percent_used, used_bytes, quota_bytes,
+              used_formatted, quota_formatted,
+              alert_type, last_synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          data.site_name, data.tenant_id, data.tenant_uuid,
+          data.percent_used, data.used_bytes, data.quota_bytes,
+          data.used_formatted, data.quota_formatted,
+          data.alert_type, now
+        );
+      return this.getClientById(result.lastInsertRowid as number);
+    }
   }
 
   // ── Storage quota alerts ──────────────────────────────────────────────

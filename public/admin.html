@@ -106,7 +106,7 @@
 
 <div class="container">
   <div class="toolbar">
-    <span class="toolbar-left" id="last-synced">Not yet synced</span>
+    <span class="toolbar-left" id="last-synced">Loading…</span>
   </div>
   <div class="card">
     <table>
@@ -118,7 +118,7 @@
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="3" class="empty">Click "Sync from Acronis" to load current storage data.</td></tr>
+        <tr><td colspan="3" class="empty">Loading saved data…</td></tr>
       </tbody>
     </table>
   </div>
@@ -232,6 +232,55 @@
     }).join('');
   }
 
+  function formatSyncTime(isoStr) {
+    if (!isoStr) return null;
+    try {
+      return new Date(isoStr).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      });
+    } catch { return null; }
+  }
+
+  function updateSyncLabel(rowsData, fromDb) {
+    const withQuota = rowsData.filter(x => x.quotaFormatted !== 'No quota set').length;
+    const count = `${rowsData.length} client${rowsData.length !== 1 ? 's' : ''} (${withQuota} with quota)`;
+    // Use the most recent lastSyncedAt from any row
+    const ts = rowsData.reduce((best, r) => {
+      if (!r.lastSyncedAt) return best;
+      return (!best || r.lastSyncedAt > best) ? r.lastSyncedAt : best;
+    }, null);
+    const timeLabel = ts ? formatSyncTime(ts) : null;
+    if (timeLabel) {
+      document.getElementById('last-synced').textContent =
+        `Last synced: ${timeLabel} — ${count}`;
+    } else if (fromDb && rowsData.length === 0) {
+      document.getElementById('last-synced').textContent = 'No data yet — click Sync from Acronis to load.';
+    } else {
+      document.getElementById('last-synced').textContent = count;
+    }
+  }
+
+  async function loadFromDb() {
+    try {
+      const r = await fetch('/api/clients/storage-status');
+      if (!r.ok) throw new Error(await r.text());
+      rows = await r.json();
+      if (rows.length === 0) {
+        document.getElementById('tbody').innerHTML =
+          '<tr><td colspan="3" class="empty">No saved data — click "Sync from Acronis" to load.</td></tr>';
+        document.getElementById('last-synced').textContent = 'Not yet synced';
+      } else {
+        render();
+        updateSyncLabel(rows, true);
+      }
+    } catch (e) {
+      document.getElementById('tbody').innerHTML =
+        `<tr class="error-row"><td colspan="3">Failed to load saved data: ${esc(e.message)}</td></tr>`;
+      document.getElementById('last-synced').textContent = '';
+    }
+  }
+
   async function syncNow() {
     const btn = document.getElementById('sync-btn');
     btn.disabled = true;
@@ -243,9 +292,7 @@
       if (!r.ok) throw new Error(await r.text());
       rows = await r.json();
       render();
-      const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      const withQuota = rows.filter(x => x.quotaFormatted !== 'No quota set').length;
-      document.getElementById('last-synced').textContent = `Last synced: ${now} — ${rows.length} client${rows.length !== 1 ? 's' : ''} (${withQuota} with storage quota set)`;
+      updateSyncLabel(rows, false);
     } catch (e) {
       document.getElementById('tbody').innerHTML = `<tr class="error-row"><td colspan="3">Failed to load from Acronis: ${esc(e.message)}</td></tr>`;
     } finally {
@@ -253,6 +300,8 @@
       btn.textContent = 'Sync from Acronis';
     }
   }
+
+  document.addEventListener('DOMContentLoaded', loadFromDb);
 
   function openModal(r) {
     document.getElementById('modal-error').style.display = 'none';

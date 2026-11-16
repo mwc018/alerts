@@ -8,19 +8,43 @@ router.get('/', (_req, res) => {
   res.json(databaseService.getAllClients());
 });
 
-// Live storage status — all Acronis tenants merged with per-client thresholds from DB
+// Storage status — served from DB by default; ?refresh=true fetches from Acronis and saves to DB
 router.get('/storage-status', async (req, res) => {
   try {
     const forceRefresh = req.query.refresh === 'true';
-    const tenants = await getAllTenantsWithStorage(forceRefresh);
-    const clients = databaseService.getAllClients();
 
+    if (!forceRefresh) {
+      const clients = databaseService.getAllClients().filter((c: any) => c.tenant_uuid);
+      const rows = clients.map((c: any) => ({
+        siteName: c.site_name,
+        tenantId: c.tenant_id,
+        tenantUuid: c.tenant_uuid,
+        percentUsed: c.percent_used ?? 0,
+        usedFormatted: c.used_formatted ?? '—',
+        quotaFormatted: c.quota_formatted ?? 'No quota set',
+        alertType: c.alert_type ?? 'None',
+        threshold: c.storage_threshold ?? 80,
+        clientDbId: c.id,
+        lastSyncedAt: c.last_synced_at ?? null,
+      }));
+      res.json(rows);
+      return;
+    }
+
+    // Refresh from Acronis and persist to DB
+    const tenants = await getAllTenantsWithStorage(true);
     const rows = tenants.map((a) => {
-      const match = clients.find((c: any) =>
-        c.site_name.toLowerCase() === a.tenantName.toLowerCase() ||
-        c.site_name.toLowerCase().includes(a.tenantName.toLowerCase()) ||
-        a.tenantName.toLowerCase().includes(c.site_name.toLowerCase())
-      );
+      const saved = databaseService.upsertClientFromAcronis({
+        tenant_id: a.tenantId,
+        tenant_uuid: a.tenantUuid,
+        site_name: a.tenantName,
+        percent_used: a.percentUsed,
+        used_bytes: a.usedBytes,
+        quota_bytes: a.quotaBytes,
+        used_formatted: a.usedFormatted,
+        quota_formatted: a.quotaFormatted,
+        alert_type: a.alertType,
+      });
       return {
         siteName: a.tenantName,
         tenantId: a.tenantId,
@@ -29,8 +53,9 @@ router.get('/storage-status', async (req, res) => {
         usedFormatted: a.usedFormatted,
         quotaFormatted: a.quotaFormatted,
         alertType: a.alertType,
-        threshold: match?.storage_threshold ?? 80,
-        clientDbId: match?.id ?? null,
+        threshold: saved?.storage_threshold ?? 80,
+        clientDbId: saved?.id ?? null,
+        lastSyncedAt: saved?.last_synced_at ?? null,
       };
     });
 
