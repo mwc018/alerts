@@ -183,29 +183,44 @@
       return;
     }
 
-    // Sort: exceeded first, then by % desc
+    // Sort: exceeded first, then by % desc, then no-quota clients at bottom
     const sorted = [...rows].sort((a, b) => {
+      const aNoQ = a.quotaFormatted === 'No quota set';
+      const bNoQ = b.quotaFormatted === 'No quota set';
+      if (aNoQ && !bNoQ) return 1;
+      if (!aNoQ && bNoQ) return -1;
       if (a.alertType === 'StorageQuotaExceeded' && b.alertType !== 'StorageQuotaExceeded') return -1;
       if (b.alertType === 'StorageQuotaExceeded' && a.alertType !== 'StorageQuotaExceeded') return 1;
       return b.percentUsed - a.percentUsed;
     });
 
     tbody.innerHTML = sorted.map(r => {
+      const noQuota = r.quotaFormatted === 'No quota set';
       const pct = Math.min(r.percentUsed, 100);
       const exceeded = r.alertType === 'StorageQuotaExceeded';
+      const hasAlert = r.alertType !== 'None';
+
+      const storageCell = noQuota
+        ? `<span style="color:var(--text-muted);font-size:12px;">No quota configured</span>`
+        : `<div class="bar-row">
+             <div class="bar-wrap"><div class="bar-fill ${barClass(r.percentUsed)}" style="width:${pct}%"></div></div>
+             <span class="bar-label" style="${barLabelColor(r.percentUsed)}">${r.percentUsed}%</span>
+           </div>
+           <div class="storage-detail">${esc(r.usedFormatted)} of ${esc(r.quotaFormatted)}</div>`;
+
+      const alertLabel = noQuota ? '' : exceeded
+        ? `<div class="alert-type exceeded">Quota Exceeded — Backups Blocked</div>`
+        : hasAlert
+        ? `<div class="alert-type">Active Storage Alert</div>`
+        : '';
+
       return `
         <tr>
           <td>
             <div class="site-name">${esc(r.siteName)}</div>
-            <div class="alert-type ${exceeded ? 'exceeded' : ''}">${exceeded ? 'Quota Exceeded — Backups Blocked' : 'At 80%+ Threshold'}</div>
+            ${alertLabel}
           </td>
-          <td class="storage-cell">
-            <div class="bar-row">
-              <div class="bar-wrap"><div class="bar-fill ${barClass(r.percentUsed)}" style="width:${pct}%"></div></div>
-              <span class="bar-label" style="${barLabelColor(r.percentUsed)}">${r.percentUsed}%</span>
-            </div>
-            <div class="storage-detail">${esc(r.usedFormatted)} of ${esc(r.quotaFormatted)}</div>
-          </td>
+          <td class="storage-cell">${storageCell}</td>
           <td class="threshold-cell">
             <div class="threshold-display">
               ${thresholdBadge(r.threshold)}
@@ -224,12 +239,13 @@
     document.getElementById('tbody').innerHTML = '<tr><td colspan="3" class="empty">Fetching from Acronis…</td></tr>';
 
     try {
-      const r = await fetch('/api/clients/storage-status');
+      const r = await fetch('/api/clients/storage-status?refresh=true');
       if (!r.ok) throw new Error(await r.text());
       rows = await r.json();
       render();
       const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      document.getElementById('last-synced').textContent = `Last synced: ${now} — ${rows.length} client${rows.length !== 1 ? 's' : ''} with active storage alerts`;
+      const withQuota = rows.filter(x => x.quotaFormatted !== 'No quota set').length;
+      document.getElementById('last-synced').textContent = `Last synced: ${now} — ${rows.length} client${rows.length !== 1 ? 's' : ''} (${withQuota} with storage quota set)`;
     } catch (e) {
       document.getElementById('tbody').innerHTML = `<tr class="error-row"><td colspan="3">Failed to load from Acronis: ${esc(e.message)}</td></tr>`;
     } finally {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import databaseService from '../services/databaseService.js';
-import { getStorageQuotaAlerts } from '../services/acronisService.js';
+import { getAllTenantsWithStorage } from '../services/acronisService.js';
 
 const router = Router();
 
@@ -8,14 +8,14 @@ router.get('/', (_req, res) => {
   res.json(databaseService.getAllClients());
 });
 
-// Live storage status from Acronis merged with per-client thresholds from DB
-router.get('/storage-status', async (_req, res) => {
+// Live storage status — all Acronis tenants merged with per-client thresholds from DB
+router.get('/storage-status', async (req, res) => {
   try {
-    const alerts = await getStorageQuotaAlerts();
+    const forceRefresh = req.query.refresh === 'true';
+    const tenants = await getAllTenantsWithStorage(forceRefresh);
     const clients = databaseService.getAllClients();
-    const clientMap = new Map(clients.map((c: any) => [c.site_name.toLowerCase(), c]));
 
-    const rows = alerts.map((a) => {
+    const rows = tenants.map((a) => {
       const match = clients.find((c: any) =>
         c.site_name.toLowerCase() === a.tenantName.toLowerCase() ||
         c.site_name.toLowerCase().includes(a.tenantName.toLowerCase()) ||

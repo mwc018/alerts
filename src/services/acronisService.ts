@@ -143,6 +143,121 @@ export async function getActionableBackupAlerts(): Promise<AcronisAlert[]> {
   return enriched;
 }
 
+// Cache for the full tenant+storage list — expires after 5 minutes
+let _allTenantsCache: { data: StorageQuotaAlert[]; expiresAt: number } | null = null;
+
+async function discoverPartnerUuid(token: string): Promise<string> {
+  // Pull one known customer tenant and read its parent_id
+  const r = await axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts?type=StorageQuotaAt80`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const alerts: any[] = r.data.items || r.data.alerts || [];
+  if (!alerts.length) {
+    // No storage alerts — try fetching any tenant to discover parent
+    const all = await axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const anyAlert = (all.data.items || all.data.alerts || [])[0];
+    if (!anyAlert?.tenant?.uuid) throw new Error('Cannot discover partner UUID — no tenants found in alerts');
+    alerts.push(anyAlert);
+  }
+  const customerUuid = alerts[0].tenant?.uuid;
+  const tenantResp = await axios.get(`${config.acronis.baseUrl}/api/2/tenants/${customerUuid}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return tenantResp.data.parent_id;
+}
+
+export async function getAllTenantsWithStorage(forceRefresh = false): Promise<StorageQuotaAlert[]> {
+  const now = Date.now();
+  if (!forceRefresh && _allTenantsCache && _allTenantsCache.expiresAt > now) {
+    return _allTenantsCache.data;
+  }
+
+  const token = await getAcronisToken();
+
+  // Discover partner UUID, then page through all customer tenants
+  const partnerUuid = await discoverPartnerUuid(token);
+
+  const allTenants: any[] = [];
+  let after = '';
+  do {
+    const params: Record<string, string> = { parent_id: partnerUuid, kind: 'customer' };
+    if (after) params.after = after;
+    const r = await axios.get(`${config.acronis.baseUrl}/api/2/tenants`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    });
+    allTenants.push(...(r.data.items || []));
+    after = r.data.paging?.cursors?.after || '';
+  } while (after);
+
+  // Build a map of active storage alerts for quick lookup
+  const [at80Resp, exceededResp] = await Promise.all([
+    axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts?type=StorageQuotaAt80`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+    axios.get(`${config.acronis.baseUrl}/api/alert_manager/v1/alerts?type=StorageQuotaExceeded`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }),
+  ]);
+  const activeAlerts: any[] = [
+    ...(at80Resp.data.items || at80Resp.data.alerts || []),
+    ...(exceededResp.data.items || exceededResp.data.alerts || []),
+  ];
+  const alertByUuid = new Map(activeAlerts.map((a) => [a.tenant?.uuid, a]));
+
+  // Fetch usages in parallel batches of 10
+  const BATCH = 10;
+  const results: StorageQuotaAlert[] = [];
+  for (let i = 0; i < allTenants.length; i += BATCH) {
+    const batch = allTenants.slice(i, i + BATCH);
+    const batchResults = await Promise.all(
+      batch.map(async (tenant) => {
+        const usages = await getTenantUsages(token, tenant.id);
+        let usedBytes = 0;
+        let quotaBytes = 0;
+        for (const item of usages) {
+          if (item.measurement_unit !== 'bytes') continue;
+          const quota = item.offering_item?.quota?.value;
+          if (!quota) continue;
+          usedBytes += item.value || 0;
+          quotaBytes += quota;
+        }
+
+        const percentUsed = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
+        const alert = alertByUuid.get(tenant.id);
+        const alertType: 'StorageQuotaAt80' | 'StorageQuotaExceeded' | 'None' =
+          alert?.type === 'StorageQuotaExceeded'
+            ? 'StorageQuotaExceeded'
+            : alert?.type === 'StorageQuotaAt80'
+            ? 'StorageQuotaAt80'
+            : 'None';
+
+        return {
+          alertId: alert?.id || `tenant-${tenant.id}`,
+          alertType: alertType as any,
+          tenantId: String(tenant.id),
+          tenantUuid: tenant.id,
+          tenantName: tenant.name,
+          storageType: 'Cloud',
+          usedBytes,
+          quotaBytes,
+          percentUsed,
+          usedFormatted: quotaBytes > 0 ? formatBytes(usedBytes) : '—',
+          quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'No quota set',
+          alertedAt: alert?.createdAt || alert?.created_at || '',
+        };
+      })
+    );
+    results.push(...batchResults);
+  }
+
+  const sorted = results.sort((a, b) => b.percentUsed - a.percentUsed);
+  _allTenantsCache = { data: sorted, expiresAt: now + 5 * 60 * 1000 };
+  return sorted;
+}
+
 export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
   const token = await getAcronisToken();
 
