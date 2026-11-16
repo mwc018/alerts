@@ -6,7 +6,7 @@ import config from '../config/config.js';
 
 const router = Router();
 
-const ALLOWED_DOMAIN = '@ttalx.com';
+const ALLOWED_DOMAINS = ['@ttalx.com', '@turnerteleco.onmicrosoft.com'];
 
 function authUrl(path: string): string {
   return `https://login.microsoftonline.com/${config.auth.azureTenantId}/oauth2/v2.0/${path}`;
@@ -74,9 +74,9 @@ router.get('/callback', async (req, res) => {
     );
     const email: string = (payload.email || payload.preferred_username || '').toLowerCase();
 
-    if (!email.endsWith(ALLOWED_DOMAIN)) {
+    if (!ALLOWED_DOMAINS.some((d) => email.endsWith(d))) {
       res.status(403).send(
-        `<h2>Access Denied</h2><p>Only ${ALLOWED_DOMAIN} accounts may access this tool.</p>` +
+        `<h2>Access Denied</h2><p>Only Turner Teleco accounts may access this tool.</p>` +
         `<p>You signed in as <strong>${email}</strong>.</p><p><a href="/auth/logout">Sign out</a></p>`
       );
       return;
