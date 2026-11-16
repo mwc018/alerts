@@ -101,7 +101,10 @@
     <h1>Storage Monitor</h1>
     <p>Live storage usage from Acronis — set alert thresholds per client</p>
   </div>
-  <button class="btn-primary" id="sync-btn" onclick="syncNow()">Sync from Acronis</button>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="btn-primary" id="sync-btn" onclick="syncNow()">Sync from Acronis</button>
+    <a href="/auth/logout" class="btn-ghost" style="padding:8px 14px;font-size:13px;font-weight:500;border-radius:var(--radius);border:1px solid var(--border);color:var(--text-muted);text-decoration:none;">Sign out</a>
+  </div>
 </header>
 
 <div class="container">

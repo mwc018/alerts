@@ -1,22 +1,40 @@
 import express from 'express';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
 import { syncBackupAlerts } from './services/backupAlertService.js';
 import { syncStorageQuotaAlerts } from './services/storageAlertService.js';
 import clientRoutes from './routes/clientRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import { requireAuth, requireAuthApi } from './middleware/requireAuth.js';
 import databaseService from './services/databaseService.js';
 import config from './config/config.js';
+
+if (!config.auth.jwtSecret) {
+  console.warn('WARNING: AUTH_SECRET is not set — authentication is disabled. Set it in Render env vars.');
+}
 
 // In dist/, __dirname is ./dist — public/ is one level up at the project root
 const publicDir = path.resolve(process.cwd(), 'public');
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(publicDir));
 
-app.use('/api/clients', clientRoutes);
+// Auth routes (must come before protected routes)
+app.use('/auth', authRoutes);
 
-app.get('/admin', (_req, res) => {
+app.get('/auth/login-page', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+
+// Protected routes — only when AUTH_SECRET is configured
+const authEnabled = !!config.auth.jwtSecret;
+
+app.use('/api/clients', authEnabled ? requireAuthApi : (_req, _res, next) => next(), clientRoutes);
+
+app.get('/admin', authEnabled ? requireAuth : (_req, _res, next) => next(), (_req, res) => {
   res.sendFile(path.join(publicDir, 'admin.html'));
 });
 

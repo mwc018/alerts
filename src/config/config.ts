@@ -30,6 +30,13 @@ interface Config {
     port: number;
     nodeEnv: string;
   };
+  auth: {
+    azureClientId: string;
+    azureClientSecret: string;
+    azureTenantId: string;
+    appUrl: string;
+    jwtSecret: string;
+  };
 }
 
 const config: Config = {
@@ -59,6 +66,13 @@ const config: Config = {
   server: {
     port: parseInt(process.env.PORT || '10000', 10),
     nodeEnv: process.env.NODE_ENV || 'development',
+  },
+  auth: {
+    azureClientId: process.env.AZURE_CLIENT_ID || '',
+    azureClientSecret: process.env.AZURE_CLIENT_SECRET || '',
+    azureTenantId: process.env.AZURE_TENANT_ID || '',
+    appUrl: (process.env.APP_URL || 'http://localhost:10000').replace(/\/$/, ''),
+    jwtSecret: process.env.AUTH_SECRET || '',
   },
 };
 
