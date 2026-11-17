@@ -611,7 +611,7 @@
         <tr>
           <th>Client</th>
           <th>Cloud Storage</th>
-          <th>Total Used</th>
+          <th>On-Site Storage</th>
           <th>Alert Threshold</th>
         </tr>
       </thead>
@@ -719,8 +719,8 @@
         ? `<span class="alert-chip chip-amber">Storage alert active</span>`
         : '';
 
-      const totalUsed = r.totalUsedFormatted && r.totalUsedFormatted !== '—'
-        ? `<span style="font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;">${esc(r.totalUsedFormatted)}</span>`
+      const onSite = r.onSiteUsedFormatted && r.onSiteUsedFormatted !== '—'
+        ? `<span style="font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;">${esc(r.onSiteUsedFormatted)}</span>`
         : `<span class="no-quota">—</span>`;
 
       return `
@@ -730,7 +730,7 @@
             ${alertChip}
           </td>
           <td class="td-storage">${storageCell}</td>
-          <td>${totalUsed}</td>
+          <td>${onSite}</td>
           <td class="td-threshold">
             <div class="threshold-wrap">
               ${thresholdBadge(r.threshold)}

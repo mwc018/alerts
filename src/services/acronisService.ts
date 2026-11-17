@@ -52,6 +52,8 @@ export interface StorageQuotaAlert {
   quotaFormatted: string;
   totalUsedBytes: number;
   totalUsedFormatted: string;
+  onSiteUsedBytes: number;
+  onSiteUsedFormatted: string;
   alertedAt: string;
 }
 
@@ -252,6 +254,8 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
           quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'No quota set',
           totalUsedBytes,
           totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
+          onSiteUsedBytes: totalUsedBytes - usedBytes,
+          onSiteUsedFormatted: (totalUsedBytes - usedBytes) > 0 ? formatBytes(totalUsedBytes - usedBytes) : '—',
           alertedAt: alert?.createdAt || alert?.created_at || '',
         };
       })
@@ -336,6 +340,8 @@ export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
       quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'Unknown',
       totalUsedBytes,
       totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
+      onSiteUsedBytes: totalUsedBytes - usedBytes,
+      onSiteUsedFormatted: (totalUsedBytes - usedBytes) > 0 ? formatBytes(totalUsedBytes - usedBytes) : '—',
       alertedAt: alert.createdAt || alert.created_at || '',
     });
   }

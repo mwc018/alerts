@@ -2,6 +2,14 @@ import { Router } from 'express';
 import databaseService from '../services/databaseService.js';
 import { getAllTenantsWithStorage } from '../services/acronisService.js';
 
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '—';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 const router = Router();
 
 router.get('/', (_req, res) => {
@@ -15,19 +23,23 @@ router.get('/storage-status', async (req, res) => {
 
     if (!forceRefresh) {
       const clients = databaseService.getAllClients().filter((c: any) => c.tenant_uuid);
-      const rows = clients.map((c: any) => ({
-        siteName: c.site_name,
-        tenantId: c.tenant_id,
-        tenantUuid: c.tenant_uuid,
-        percentUsed: c.percent_used ?? 0,
-        usedFormatted: c.used_formatted ?? '—',
-        quotaFormatted: c.quota_formatted ?? 'No quota set',
-        totalUsedFormatted: c.total_used_formatted ?? '—',
-        alertType: c.alert_type ?? 'None',
-        threshold: c.storage_threshold ?? 80,
-        clientDbId: c.id,
-        lastSyncedAt: c.last_synced_at ?? null,
-      }));
+      const rows = clients.map((c: any) => {
+        const onSiteBytes = (c.total_used_bytes ?? 0) - (c.used_bytes ?? 0);
+        return {
+          siteName: c.site_name,
+          tenantId: c.tenant_id,
+          tenantUuid: c.tenant_uuid,
+          percentUsed: c.percent_used ?? 0,
+          usedFormatted: c.used_formatted ?? '—',
+          quotaFormatted: c.quota_formatted ?? 'No quota set',
+          totalUsedFormatted: c.total_used_formatted ?? '—',
+          onSiteUsedFormatted: onSiteBytes > 0 ? formatBytes(onSiteBytes) : '—',
+          alertType: c.alert_type ?? 'None',
+          threshold: c.storage_threshold ?? 80,
+          clientDbId: c.id,
+          lastSyncedAt: c.last_synced_at ?? null,
+        };
+      });
       res.json(rows);
       return;
     }
@@ -68,6 +80,7 @@ router.get('/storage-status', async (req, res) => {
         usedFormatted: a.usedFormatted,
         quotaFormatted: a.quotaFormatted,
         totalUsedFormatted: a.totalUsedFormatted,
+        onSiteUsedFormatted: a.onSiteUsedFormatted,
         alertType: a.alertType,
         threshold: saved?.storage_threshold ?? 80,
         clientDbId: saved?.id ?? null,
