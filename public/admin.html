@@ -705,10 +705,7 @@
       const at80 = r.alertType === 'StorageQuotaAt80';
 
       const storageCell = noQuota
-        ? (r.usedFormatted !== '—'
-            ? `<div class="storage-detail" style="margin-top:0">${esc(r.usedFormatted)} used</div>
-               <div class="no-quota">No quota set in Acronis</div>`
-            : `<span class="no-quota">No data</span>`)
+        ? `<span class="no-quota">No cloud quota in Acronis</span>`
         : `<div class="bar-row">
              <div class="bar-track"><div class="bar-fill fill-${cls}" style="width:${pct}%"></div></div>
              <span class="pct-label pct-${cls}">${r.percentUsed}%</span>

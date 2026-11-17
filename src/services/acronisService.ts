@@ -219,9 +219,10 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
         let quotaBytes = 0;
         for (const item of usages) {
           if (item.measurement_unit !== 'bytes') continue;
-          usedBytes += item.value || 0;             // count ALL usage
           const quota = item.offering_item?.quota?.value;
-          if (quota) quotaBytes += quota;            // only count where quota exists
+          if (!quota) continue;  // no quota = local/on-site storage, skip
+          usedBytes += item.value || 0;
+          quotaBytes += quota;
         }
 
         const percentUsed = quotaBytes > 0 ? Math.round((usedBytes / quotaBytes) * 100) : 0;
@@ -243,7 +244,7 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
           usedBytes,
           quotaBytes,
           percentUsed,
-          usedFormatted: usedBytes > 0 ? formatBytes(usedBytes) : '—',
+          usedFormatted: quotaBytes > 0 ? formatBytes(usedBytes) : '—',
           quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'No quota set',
           alertedAt: alert?.createdAt || alert?.created_at || '',
         };
@@ -304,9 +305,10 @@ export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
       const usages = await getTenantUsages(token, tenantUuid);
       for (const item of usages) {
         if (item.measurement_unit !== 'bytes') continue;
-        usedBytes += item.value || 0;
         const quota = item.offering_item?.quota?.value;
-        if (quota) quotaBytes += quota;
+        if (!quota) continue;  // no quota = local/on-site storage, skip
+        usedBytes += item.value || 0;
+        quotaBytes += quota;
       }
     }
 
