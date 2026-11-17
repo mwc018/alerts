@@ -22,6 +22,7 @@ router.get('/storage-status', async (req, res) => {
         percentUsed: c.percent_used ?? 0,
         usedFormatted: c.used_formatted ?? '—',
         quotaFormatted: c.quota_formatted ?? 'No quota set',
+        totalUsedFormatted: c.total_used_formatted ?? '—',
         alertType: c.alert_type ?? 'None',
         threshold: c.storage_threshold ?? 80,
         clientDbId: c.id,
@@ -43,6 +44,8 @@ router.get('/storage-status', async (req, res) => {
         quota_bytes: a.quotaBytes,
         used_formatted: a.usedFormatted,
         quota_formatted: a.quotaFormatted,
+        total_used_bytes: a.totalUsedBytes,
+        total_used_formatted: a.totalUsedFormatted,
         alert_type: a.alertType,
       });
       databaseService.insertStorageSnapshot({
@@ -53,6 +56,8 @@ router.get('/storage-status', async (req, res) => {
         quota_bytes: a.quotaBytes,
         used_formatted: a.usedFormatted,
         quota_formatted: a.quotaFormatted,
+        total_used_bytes: a.totalUsedBytes,
+        total_used_formatted: a.totalUsedFormatted,
         alert_type: a.alertType,
       });
       return {
@@ -62,6 +67,7 @@ router.get('/storage-status', async (req, res) => {
         percentUsed: a.percentUsed,
         usedFormatted: a.usedFormatted,
         quotaFormatted: a.quotaFormatted,
+        totalUsedFormatted: a.totalUsedFormatted,
         alertType: a.alertType,
         threshold: saved?.storage_threshold ?? 80,
         clientDbId: saved?.id ?? null,

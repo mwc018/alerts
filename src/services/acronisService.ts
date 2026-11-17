@@ -50,6 +50,8 @@ export interface StorageQuotaAlert {
   percentUsed: number;
   usedFormatted: string;
   quotaFormatted: string;
+  totalUsedBytes: number;
+  totalUsedFormatted: string;
   alertedAt: string;
 }
 
@@ -217,10 +219,12 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
         const usages = await getTenantUsages(token, tenant.id);
         let usedBytes = 0;
         let quotaBytes = 0;
+        let totalUsedBytes = 0;
         for (const item of usages) {
           if (item.measurement_unit !== 'bytes') continue;
+          totalUsedBytes += item.value || 0;
           const quota = item.offering_item?.quota?.value;
-          if (!quota) continue;  // no quota = local/on-site storage, skip
+          if (!quota) continue;  // no quota = local/on-site storage, skip for cloud totals
           usedBytes += item.value || 0;
           quotaBytes += quota;
         }
@@ -246,6 +250,8 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
           percentUsed,
           usedFormatted: quotaBytes > 0 ? formatBytes(usedBytes) : '—',
           quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'No quota set',
+          totalUsedBytes,
+          totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
           alertedAt: alert?.createdAt || alert?.created_at || '',
         };
       })
@@ -300,13 +306,15 @@ export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
 
     let usedBytes = 0;
     let quotaBytes = 0;
+    let totalUsedBytes = 0;
 
     if (tenantUuid) {
       const usages = await getTenantUsages(token, tenantUuid);
       for (const item of usages) {
         if (item.measurement_unit !== 'bytes') continue;
+        totalUsedBytes += item.value || 0;
         const quota = item.offering_item?.quota?.value;
-        if (!quota) continue;  // no quota = local/on-site storage, skip
+        if (!quota) continue;  // no quota = local/on-site storage, skip for cloud totals
         usedBytes += item.value || 0;
         quotaBytes += quota;
       }
@@ -326,6 +334,8 @@ export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
       percentUsed,
       usedFormatted: formatBytes(usedBytes),
       quotaFormatted: quotaBytes > 0 ? formatBytes(quotaBytes) : 'Unknown',
+      totalUsedBytes,
+      totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
       alertedAt: alert.createdAt || alert.created_at || '',
     });
   }

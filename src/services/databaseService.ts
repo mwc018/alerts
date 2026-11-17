@@ -78,6 +78,8 @@ class DatabaseService {
       ['quota_formatted', 'TEXT'],
       ['alert_type', "TEXT DEFAULT 'None'"],
       ['last_synced_at', 'TEXT'],
+      ['total_used_bytes', 'INTEGER DEFAULT 0'],
+      ['total_used_formatted', 'TEXT'],
     ] as [string, string][]) {
       if (!clientCols.includes(col)) {
         this.db.exec(`ALTER TABLE clients ADD COLUMN ${col} ${def}`);
@@ -94,12 +96,24 @@ class DatabaseService {
         quota_bytes INTEGER NOT NULL DEFAULT 0,
         used_formatted TEXT,
         quota_formatted TEXT,
+        total_used_bytes INTEGER DEFAULT 0,
+        total_used_formatted TEXT,
         alert_type TEXT DEFAULT 'None',
         snapshot_date TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(tenant_uuid, snapshot_date)
       )
     `);
+
+    const histCols = (this.db.pragma('table_info(storage_history)') as Array<{ name: string }>).map((r) => r.name);
+    for (const [col, def] of [
+      ['total_used_bytes', 'INTEGER DEFAULT 0'],
+      ['total_used_formatted', 'TEXT'],
+    ] as [string, string][]) {
+      if (!histCols.includes(col)) {
+        this.db.exec(`ALTER TABLE storage_history ADD COLUMN ${col} ${def}`);
+      }
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS storage_quota_alerts (
@@ -345,6 +359,8 @@ class DatabaseService {
     quota_bytes: number;
     used_formatted: string;
     quota_formatted: string;
+    total_used_bytes: number;
+    total_used_formatted: string;
     alert_type: string;
   }): any {
     const now = new Date().toISOString();
@@ -357,6 +373,7 @@ class DatabaseService {
              tenant_id = ?, tenant_uuid = ?,
              percent_used = ?, used_bytes = ?, quota_bytes = ?,
              used_formatted = ?, quota_formatted = ?,
+             total_used_bytes = ?, total_used_formatted = ?,
              alert_type = ?, last_synced_at = ?,
              updated_at = datetime('now')
            WHERE id = ?`
@@ -365,6 +382,7 @@ class DatabaseService {
           data.tenant_id, data.tenant_uuid,
           data.percent_used, data.used_bytes, data.quota_bytes,
           data.used_formatted, data.quota_formatted,
+          data.total_used_bytes, data.total_used_formatted,
           data.alert_type, now,
           existing.id
         );
@@ -376,13 +394,15 @@ class DatabaseService {
              (site_name, tenant_id, tenant_uuid,
               percent_used, used_bytes, quota_bytes,
               used_formatted, quota_formatted,
+              total_used_bytes, total_used_formatted,
               alert_type, last_synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           data.site_name, data.tenant_id, data.tenant_uuid,
           data.percent_used, data.used_bytes, data.quota_bytes,
           data.used_formatted, data.quota_formatted,
+          data.total_used_bytes, data.total_used_formatted,
           data.alert_type, now
         );
       return this.getClientById(result.lastInsertRowid as number);
@@ -399,6 +419,8 @@ class DatabaseService {
     quota_bytes: number;
     used_formatted: string;
     quota_formatted: string;
+    total_used_bytes: number;
+    total_used_formatted: string;
     alert_type: string;
   }): void {
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -406,20 +428,25 @@ class DatabaseService {
       .prepare(
         `INSERT INTO storage_history
            (tenant_uuid, site_name, percent_used, used_bytes, quota_bytes,
-            used_formatted, quota_formatted, alert_type, snapshot_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            used_formatted, quota_formatted,
+            total_used_bytes, total_used_formatted,
+            alert_type, snapshot_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(tenant_uuid, snapshot_date) DO UPDATE SET
-           percent_used   = excluded.percent_used,
-           used_bytes     = excluded.used_bytes,
-           quota_bytes    = excluded.quota_bytes,
-           used_formatted = excluded.used_formatted,
-           quota_formatted = excluded.quota_formatted,
-           alert_type     = excluded.alert_type`
+           percent_used        = excluded.percent_used,
+           used_bytes          = excluded.used_bytes,
+           quota_bytes         = excluded.quota_bytes,
+           used_formatted      = excluded.used_formatted,
+           quota_formatted     = excluded.quota_formatted,
+           total_used_bytes    = excluded.total_used_bytes,
+           total_used_formatted = excluded.total_used_formatted,
+           alert_type          = excluded.alert_type`
       )
       .run(
         data.tenant_uuid, data.site_name,
         data.percent_used, data.used_bytes, data.quota_bytes,
         data.used_formatted, data.quota_formatted,
+        data.total_used_bytes, data.total_used_formatted,
         data.alert_type, today
       );
   }

@@ -141,6 +141,8 @@ export async function takeStorageSnapshots(): Promise<number> {
       quota_bytes: t.quotaBytes,
       used_formatted: t.usedFormatted,
       quota_formatted: t.quotaFormatted,
+      total_used_bytes: t.totalUsedBytes,
+      total_used_formatted: t.totalUsedFormatted,
       alert_type: t.alertType,
     });
   }
