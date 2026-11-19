@@ -807,14 +807,14 @@
         : '';
 
       const reviewChip = r.needsQuotaReview
-        ? `<button class="alert-chip chip-review" title="Click to remove flag" onclick="toggleFlag(${r.clientDbId}, false, '${esc(r.siteName)}')">⚑ Needs Review</button>`
+        ? `<button class="alert-chip chip-review" title="Click to remove flag" onclick="toggleFlag(${r.clientDbId}, false)">⚑ Needs Review</button>`
         : '';
 
       const thresholdCell = noQuota
         ? `<div class="threshold-wrap">
              ${r.needsQuotaReview
-               ? `<button class="edit-btn" style="opacity:1;color:var(--orange-text);border-color:var(--orange);" onclick="toggleFlag(${r.clientDbId}, false, '${esc(r.siteName)}')">Remove flag</button>`
-               : `<button class="edit-btn" style="opacity:1;" onclick="toggleFlag(${r.clientDbId}, true, '${esc(r.siteName)}')">Flag for review</button>`
+               ? `<button class="edit-btn" style="opacity:1;color:var(--orange-text);border-color:var(--orange);" onclick="toggleFlag(${r.clientDbId}, false)">Remove flag</button>`
+               : `<button class="edit-btn" style="opacity:1;" onclick="toggleFlag(${r.clientDbId}, true)">Flag for review</button>`
              }
            </div>`
         : `<div class="threshold-wrap">
@@ -846,11 +846,12 @@
     render();
   }
 
-  async function toggleFlag(clientDbId, flagged, siteName) {
+  async function toggleFlag(clientDbId, flagged) {
     if (!clientDbId) {
-      alert(`"${siteName}" hasn't been synced yet — sync from Acronis first to create a DB record.`);
+      alert('This client has no database record yet — sync from Acronis first.');
       return;
     }
+    const siteName = (rows.find(x => x.clientDbId === clientDbId) || {}).siteName || '';
     try {
       const r = await fetch(`/api/clients/${clientDbId}/review-flag`, {
         method: 'PATCH',
