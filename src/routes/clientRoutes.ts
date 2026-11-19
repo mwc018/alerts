@@ -35,6 +35,7 @@ router.get('/storage-status', async (req, res) => {
           totalUsedFormatted: c.total_used_formatted ?? '—',
           onSiteUsedFormatted: onSiteBytes > 0 ? formatBytes(onSiteBytes) : '—',
           m365Mailboxes: c.m365_mailboxes ?? 0,
+          needsQuotaReview: !!(c.needs_quota_review),
           alertType: c.alert_type ?? 'None',
           threshold: c.storage_threshold ?? 80,
           clientDbId: c.id,
@@ -84,6 +85,7 @@ router.get('/storage-status', async (req, res) => {
         totalUsedFormatted: a.totalUsedFormatted,
         onSiteUsedFormatted: a.onSiteUsedFormatted,
         m365Mailboxes: a.m365Mailboxes,
+        needsQuotaReview: !!(saved?.needs_quota_review),
         alertType: a.alertType,
         threshold: saved?.storage_threshold ?? 80,
         clientDbId: saved?.id ?? null,
@@ -122,6 +124,18 @@ router.put('/:id', (req, res) => {
     res.status(404).json({ error: 'Client not found' });
     return;
   }
+  res.json(client);
+});
+
+router.patch('/:id/review-flag', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { flagged } = req.body;
+  if (typeof flagged !== 'boolean') {
+    res.status(400).json({ error: 'flagged must be a boolean' });
+    return;
+  }
+  const client = databaseService.setReviewFlag(id, flagged);
+  if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
   res.json(client);
 });
 

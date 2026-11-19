@@ -81,6 +81,7 @@ class DatabaseService {
       ['total_used_bytes', 'INTEGER DEFAULT 0'],
       ['total_used_formatted', 'TEXT'],
       ['m365_mailboxes', 'INTEGER DEFAULT 0'],
+      ['needs_quota_review', 'INTEGER DEFAULT 0'],
     ] as [string, string][]) {
       if (!clientCols.includes(col)) {
         this.db.exec(`ALTER TABLE clients ADD COLUMN ${col} ${def}`);
@@ -551,6 +552,13 @@ class DatabaseService {
          WHERE alert_id = ?`
       )
       .run(alertId);
+  }
+
+  setReviewFlag(id: number, flagged: boolean): any {
+    this.db
+      .prepare(`UPDATE clients SET needs_quota_review = ?, updated_at = datetime('now') WHERE id = ?`)
+      .run(flagged ? 1 : 0, id);
+    return this.getClientById(id);
   }
 
   runQuery(sql: string): { columns: string[]; rows: any[][] } {

@@ -214,6 +214,61 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* ── Filter tabs ── */
+    .filter-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      transition: color 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .tab-btn.active { background: var(--surface); border-color: var(--border); color: var(--text); }
+    .tab-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--orange-bg);
+      color: var(--orange-text);
+    }
+    .btn-export {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 5px 12px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-export:hover { color: var(--text); border-color: var(--text-muted); }
+
     /* ── Card + table ── */
     .card {
       background: var(--surface);
@@ -265,6 +320,8 @@
     }
     .chip-red    { background: var(--red-bg);   color: var(--red-text); }
     .chip-amber  { background: var(--amber-bg); color: var(--amber-text); }
+    .chip-review { background: var(--orange-bg); color: var(--orange-text); cursor: pointer; border: none; font-family: inherit; font-size: 11px; font-weight: 500; line-height: 1.6; padding: 2px 8px; border-radius: 5px; display: inline-block; }
+    .chip-review:hover { opacity: 0.8; }
 
     /* ── Storage cell ── */
     .td-storage { min-width: 200px; }
@@ -605,6 +662,16 @@
   <div class="toolbar">
     <span class="sync-status" id="last-synced">Loading…</span>
   </div>
+  <div class="filter-tabs">
+    <button class="tab-btn active" id="tab-all" onclick="setTab('all')">All clients</button>
+    <button class="tab-btn" id="tab-review" onclick="setTab('review')">
+      Needs Review <span class="tab-count" id="review-count" style="display:none">0</span>
+    </button>
+    <button class="btn-export" id="export-btn" style="display:none" onclick="exportFlagged()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
   <div class="card">
     <table>
       <thead>
@@ -653,6 +720,7 @@
 
 <script>
   let rows = [];
+  let activeTab = 'all';
 
   function barClass(pct) {
     if (pct >= 100) return 'red';
@@ -688,7 +756,26 @@
       return;
     }
 
-    const sorted = [...rows].sort((a, b) => {
+    // Update review count badge + export button visibility
+    const flaggedCount = rows.filter(r => r.needsQuotaReview).length;
+    const countEl = document.getElementById('review-count');
+    countEl.textContent = flaggedCount;
+    countEl.style.display = flaggedCount > 0 ? '' : 'none';
+    document.getElementById('export-btn').style.display = flaggedCount > 0 && activeTab === 'review' ? '' : 'none';
+
+    const visible = activeTab === 'review' ? rows.filter(r => r.needsQuotaReview) : rows;
+
+    if (visible.length === 0 && activeTab === 'review') {
+      tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">
+        <p class="empty-title">No clients flagged for review</p>
+        <p class="empty-sub">Flag clients with no quota by clicking "Flag for Review" on their row.</p>
+      </div></td></tr>`;
+      return;
+    }
+
+    const sorted = [...visible].sort((a, b) => {
+      if (a.needsQuotaReview && !b.needsQuotaReview) return -1;
+      if (!a.needsQuotaReview && b.needsQuotaReview) return 1;
       const aNoQ = a.quotaFormatted === 'No quota set';
       const bNoQ = b.quotaFormatted === 'No quota set';
       if (aNoQ && !bNoQ) return 1;
@@ -719,26 +806,81 @@
         ? `<span class="alert-chip chip-amber">Storage alert active</span>`
         : '';
 
+      const reviewChip = r.needsQuotaReview
+        ? `<button class="alert-chip chip-review" title="Click to remove flag" onclick="toggleFlag(${r.clientDbId}, false, '${esc(r.siteName)}')">⚑ Needs Review</button>`
+        : '';
+
+      const thresholdCell = noQuota
+        ? `<div class="threshold-wrap">
+             ${r.needsQuotaReview
+               ? `<button class="edit-btn" style="opacity:1;color:var(--orange-text);border-color:var(--orange);" onclick="toggleFlag(${r.clientDbId}, false, '${esc(r.siteName)}')">Remove flag</button>`
+               : `<button class="edit-btn" style="opacity:1;" onclick="toggleFlag(${r.clientDbId}, true, '${esc(r.siteName)}')">Flag for review</button>`
+             }
+           </div>`
+        : `<div class="threshold-wrap">
+             ${thresholdBadge(r.threshold)}
+             <button class="edit-btn" onclick="openModal(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+           </div>`;
+
       return `
         <tr>
           <td>
             <div class="site-name">${esc(r.siteName)}</div>
-            ${alertChip}
+            ${alertChip}${reviewChip}
           </td>
           <td class="td-storage">${storageCell}</td>
           <td style="white-space:nowrap;">${r.m365Mailboxes > 0
             ? `<span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;">${r.m365Mailboxes}</span><span style="font-size:12px;color:var(--text-muted);margin-left:4px;">mailbox${r.m365Mailboxes !== 1 ? 'es' : ''}</span>`
             : `<span class="no-quota">—</span>`
           }</td>
-          <td class="td-threshold">
-            <div class="threshold-wrap">
-              ${thresholdBadge(r.threshold)}
-              <button class="edit-btn" onclick="openModal(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
-            </div>
-          </td>
+          <td class="td-threshold">${thresholdCell}</td>
         </tr>
       `;
     }).join('');
+  }
+
+  function setTab(tab) {
+    activeTab = tab;
+    document.getElementById('tab-all').classList.toggle('active', tab === 'all');
+    document.getElementById('tab-review').classList.toggle('active', tab === 'review');
+    render();
+  }
+
+  async function toggleFlag(clientDbId, flagged, siteName) {
+    if (!clientDbId) {
+      alert(`"${siteName}" hasn't been synced yet — sync from Acronis first to create a DB record.`);
+      return;
+    }
+    try {
+      const r = await fetch(`/api/clients/${clientDbId}/review-flag`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flagged }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed'); }
+      const row = rows.find(x => x.clientDbId === clientDbId);
+      if (row) row.needsQuotaReview = flagged;
+      render();
+    } catch (e) {
+      alert('Could not update flag: ' + e.message);
+    }
+  }
+
+  function exportFlagged() {
+    const flagged = rows.filter(r => r.needsQuotaReview);
+    if (!flagged.length) return;
+    const header = ['Client', 'Cloud Storage', 'M365 Mailboxes', 'Last Synced'];
+    const csvRows = flagged.map(r => [
+      `"${r.siteName.replace(/"/g, '""')}"`,
+      `"${r.quotaFormatted === 'No quota set' ? 'No quota' : r.usedFormatted + ' of ' + r.quotaFormatted}"`,
+      r.m365Mailboxes > 0 ? r.m365Mailboxes : 0,
+      `"${r.lastSyncedAt ? new Date(r.lastSyncedAt).toLocaleDateString() : ''}"`,
+    ]);
+    const csv = [header, ...csvRows].map(r => r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `quota-review-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
   }
 
   function formatSyncTime(isoStr) {
