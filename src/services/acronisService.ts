@@ -314,6 +314,43 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
   return sorted;
 }
 
+export async function setTenantStorageQuota(tenantUuid: string, quotaBytes: number): Promise<{ updated: number; itemNames: string[] }> {
+  const token = await getAcronisToken();
+
+  const effResp = await axios.get(
+    `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/offering_items/effective`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  const allItems: any[] = effResp.data.items || [];
+
+  // Cloud storage items: bytes measurement, excluding local/on-site by usage_name
+  const storageItems = allItems.filter(
+    (item) =>
+      item.measurement_unit === 'bytes' &&
+      !String(item.usage_name || '').toLowerCase().includes('local')
+  );
+
+  if (storageItems.length === 0) {
+    throw new Error('No cloud storage offering items found for this tenant');
+  }
+
+  const updatedItems = storageItems.map((item) => ({
+    ...item,
+    quota: { ...(item.quota || {}), value: quotaBytes },
+  }));
+
+  await axios.put(
+    `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/offering_items`,
+    { offering_items: updatedItems },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  _allTenantsCache = null;
+
+  return { updated: updatedItems.length, itemNames: updatedItems.map((i) => i.usage_name || i.name) };
+}
+
 export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
   const token = await getAcronisToken();
 

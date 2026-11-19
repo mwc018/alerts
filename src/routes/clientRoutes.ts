@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import databaseService from '../services/databaseService.js';
-import { getAllTenantsWithStorage } from '../services/acronisService.js';
+import { getAllTenantsWithStorage, setTenantStorageQuota } from '../services/acronisService.js';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '—';
@@ -137,6 +137,27 @@ router.patch('/:id/review-flag', (req, res) => {
   const client = databaseService.setReviewFlag(id, flagged);
   if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
   res.json(client);
+});
+
+router.patch('/:id/quota', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const { quotaBytes } = req.body;
+  if (typeof quotaBytes !== 'number' || quotaBytes <= 0) {
+    res.status(400).json({ error: 'quotaBytes must be a positive number' });
+    return;
+  }
+  const client = databaseService.getClientById(id);
+  if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
+  if (!client.tenant_uuid) {
+    res.status(400).json({ error: 'Client has no Acronis tenant UUID — sync from Acronis first' });
+    return;
+  }
+  try {
+    const result = await setTenantStorageQuota(client.tenant_uuid, quotaBytes);
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.delete('/:id', (req, res) => {

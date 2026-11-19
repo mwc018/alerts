@@ -620,6 +620,30 @@
     .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
     .btn-primary:disabled { opacity: 0.55; cursor: default; }
 
+    .field select {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .field select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+    }
+    .quota-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .quota-input-row input[type="number"] { flex: 1; }
+
     @media (max-width: 600px) {
       .brand-text p { display: none; }
       .header-inner { padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px)); }
@@ -693,6 +717,35 @@
   </div>
 </main>
 
+<!-- Set/Change Quota modal -->
+<div class="overlay" id="overlay-quota">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Set Cloud Storage Quota</h2>
+      <button class="modal-close" onclick="closeQuotaModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="quota-modal-error" class="modal-err" style="display:none"></div>
+      <div class="modal-site-name" id="quota-modal-site-label"></div>
+      <div class="field">
+        <label>Quota</label>
+        <div class="quota-input-row">
+          <input id="f-quota-amount" type="number" min="1" step="1" value="100" />
+          <select id="f-quota-unit">
+            <option value="GB">GB</option>
+            <option value="TB">TB</option>
+          </select>
+        </div>
+        <p class="field-hint">Sets the maximum cloud storage quota for this client in Acronis. Changes take effect immediately — the page will re-sync after saving.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeQuotaModal()">Cancel</button>
+      <button class="btn-primary" id="quota-modal-save" onclick="saveQuota()">Set Quota</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit threshold modal -->
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -721,6 +774,7 @@
 <script>
   let rows = [];
   let activeTab = 'all';
+  let quotaModalDbId = null;
 
   function barClass(pct) {
     if (pct >= 100) return 'red';
@@ -816,10 +870,12 @@
                ? `<button class="edit-btn" style="opacity:1;color:var(--orange-text);border-color:var(--orange);" onclick="toggleFlag(${r.clientDbId}, false)">Remove flag</button>`
                : `<button class="edit-btn" style="opacity:1;" onclick="toggleFlag(${r.clientDbId}, true)">Flag for review</button>`
              }
+             <button class="edit-btn" style="opacity:1;" onclick="openQuotaModal(${r.clientDbId})">Change quota</button>
            </div>`
         : `<div class="threshold-wrap">
              ${thresholdBadge(r.threshold)}
              <button class="edit-btn" onclick="openModal(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+             <button class="edit-btn" onclick="openQuotaModal(${r.clientDbId})">Change quota</button>
            </div>`;
 
       return `
@@ -864,6 +920,61 @@
       render();
     } catch (e) {
       alert('Could not update flag: ' + e.message);
+    }
+  }
+
+  function openQuotaModal(clientDbId) {
+    if (!clientDbId) {
+      alert('This client has no database record yet — sync from Acronis first.');
+      return;
+    }
+    const row = rows.find(x => x.clientDbId === clientDbId);
+    if (!row) return;
+    quotaModalDbId = clientDbId;
+    document.getElementById('quota-modal-error').style.display = 'none';
+    document.getElementById('quota-modal-site-label').textContent = row.siteName;
+    document.getElementById('f-quota-amount').value = 100;
+    document.getElementById('f-quota-unit').value = 'GB';
+    document.getElementById('quota-modal-save').disabled = false;
+    document.getElementById('quota-modal-save').textContent = 'Set Quota';
+    document.getElementById('overlay-quota').classList.add('open');
+    setTimeout(() => document.getElementById('f-quota-amount').select(), 50);
+  }
+
+  function closeQuotaModal() {
+    document.getElementById('overlay-quota').classList.remove('open');
+    quotaModalDbId = null;
+  }
+
+  async function saveQuota() {
+    const errEl = document.getElementById('quota-modal-error');
+    errEl.style.display = 'none';
+    const amount = parseFloat(document.getElementById('f-quota-amount').value);
+    const unit = document.getElementById('f-quota-unit').value;
+    if (isNaN(amount) || amount <= 0) {
+      errEl.textContent = 'Enter a valid quota amount.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const multiplier = unit === 'TB' ? 1024 ** 4 : 1024 ** 3;
+    const quotaBytes = Math.round(amount * multiplier);
+    const btn = document.getElementById('quota-modal-save');
+    btn.disabled = true;
+    btn.textContent = 'Setting…';
+    try {
+      const r = await fetch(`/api/clients/${quotaModalDbId}/quota`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quotaBytes }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed to set quota'); }
+      closeQuotaModal();
+      await syncNow();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Set Quota';
     }
   }
 
@@ -1026,10 +1137,18 @@
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('overlay')) closeModal();
   });
+  document.getElementById('overlay-quota').addEventListener('click', e => {
+    if (e.target === document.getElementById('overlay-quota')) closeQuotaModal();
+  });
   document.addEventListener('keydown', e => {
-    if (!document.getElementById('overlay').classList.contains('open')) return;
-    if (e.key === 'Escape') closeModal();
-    if (e.key === 'Enter' && document.activeElement.id === 'f-threshold') saveThreshold();
+    if (document.getElementById('overlay').classList.contains('open')) {
+      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Enter' && document.activeElement.id === 'f-threshold') saveThreshold();
+    }
+    if (document.getElementById('overlay-quota').classList.contains('open')) {
+      if (e.key === 'Escape') closeQuotaModal();
+      if (e.key === 'Enter' && (document.activeElement.id === 'f-quota-amount' || document.activeElement.id === 'f-quota-unit')) saveQuota();
+    }
   });
 
   document.addEventListener('DOMContentLoaded', loadFromDb);
