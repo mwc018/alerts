@@ -316,39 +316,53 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
 
 export async function setTenantStorageQuota(tenantUuid: string, quotaBytes: number): Promise<{ updated: number; itemNames: string[] }> {
   const token = await getAcronisToken();
+  const headers = { Authorization: `Bearer ${token}` };
 
-  const effResp = await axios.get(
-    `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/offering_items/effective`,
-    { headers: { Authorization: `Bearer ${token}` } }
+  // Cloud storage quotas live on infra-type usage items — NOT in /offering_items directly.
+  // Read usages to find infra storage items, then PUT them back via /offering_items.
+  const usageResp = await axios.get(
+    `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/usages`,
+    { headers }
   );
+  const usages: any[] = usageResp.data.items || [];
 
-  const allItems: any[] = effResp.data.items || [];
-
-  // Cloud storage items: bytes measurement, excluding local/on-site by usage_name
-  const storageItems = allItems.filter(
+  const infraStorageItems = usages.filter(
     (item) =>
+      item.type === 'infra' &&
       item.measurement_unit === 'bytes' &&
-      !String(item.usage_name || '').toLowerCase().includes('local')
+      item.usage_name === 'storage'
   );
 
-  if (storageItems.length === 0) {
-    throw new Error('No cloud storage offering items found for this tenant');
+  if (infraStorageItems.length === 0) {
+    throw new Error('No cloud storage usage items found for this tenant');
   }
 
-  const updatedItems = storageItems.map((item) => ({
-    ...item,
-    quota: { ...(item.quota || {}), value: quotaBytes },
+  const offeringItems = infraStorageItems.map((item) => ({
+    application_id: item.application_id,
+    name: item.name,
+    edition: item.edition,
+    usage_name: item.usage_name,
+    type: item.type,
+    infra_id: item.infra_id,
+    measurement_unit: item.measurement_unit,
+    status: item.offering_item?.status ?? 1,
+    locked: false,
+    quota: {
+      value: quotaBytes,
+      overage: null,
+      version: item.offering_item?.quota?.version ?? 0,
+    },
   }));
 
   await axios.put(
     `${config.acronis.baseUrl}/api/2/tenants/${tenantUuid}/offering_items`,
-    { offering_items: updatedItems },
-    { headers: { Authorization: `Bearer ${token}` } }
+    { offering_items: offeringItems },
+    { headers }
   );
 
   _allTenantsCache = null;
 
-  return { updated: updatedItems.length, itemNames: updatedItems.map((i) => i.usage_name || i.name) };
+  return { updated: offeringItems.length, itemNames: offeringItems.map((i) => i.usage_name || i.name) };
 }
 
 export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
