@@ -26,6 +26,13 @@ export async function syncStorageQuotaAlerts(): Promise<{
     const clientMapping = databaseService.lookupClientBySiteName(alert.tenantName);
     const threshold = clientMapping?.storage_threshold ?? DEFAULT_THRESHOLD;
 
+    // Suppress alerts for clients flagged for quota review
+    if (clientMapping?.needs_quota_review) {
+      suppressed++;
+      console.log(`[StorageAlert] Suppressed ${alert.tenantName}: flagged for quota review`);
+      continue;
+    }
+
     // StorageQuotaExceeded always alerts regardless of threshold
     const meetsThreshold = alert.alertType === 'StorageQuotaExceeded' || alert.percentUsed >= threshold;
 
