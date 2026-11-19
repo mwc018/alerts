@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import cron from 'node-cron';
 import { syncBackupAlerts } from './services/backupAlertService.js';
 import { syncStorageQuotaAlerts, takeStorageSnapshots } from './services/storageAlertService.js';
+import { probeTenantUsages } from './services/acronisService.js';
 import clientRoutes from './routes/clientRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import { requireAuth, requireAuthApi } from './middleware/requireAuth.js';
@@ -56,6 +57,19 @@ app.post('/api/query', authEnabled ? requireAuthApi : (_req, _res, next) => next
     res.json({ ...result, ms: Date.now() - start, capped: result.rows.length === 1000 });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Temporary diagnostic — shows all raw Acronis usage items for a named tenant
+// Usage: /debug/tenant-usages?name=ClientName
+app.get('/debug/tenant-usages', authEnabled ? requireAuth : (_req, _res, next) => next(), async (req, res) => {
+  const name = (req.query.name as string || '').trim();
+  if (!name) { res.status(400).json({ error: 'Pass ?name=ClientName' }); return; }
+  try {
+    const result = await probeTenantUsages(name);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

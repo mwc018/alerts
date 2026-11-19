@@ -107,6 +107,49 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+export async function probeTenantUsages(tenantName: string): Promise<any> {
+  const token = await getAcronisToken();
+  const partnerUuid = await discoverPartnerUuid(token);
+
+  // Find matching tenant
+  const allTenants: any[] = [];
+  let after = '';
+  do {
+    const params: Record<string, string> = { parent_id: partnerUuid, kind: 'customer' };
+    if (after) params.after = after;
+    const r = await axios.get(`${config.acronis.baseUrl}/api/2/tenants`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    });
+    allTenants.push(...(r.data.items || []));
+    after = r.data.paging?.cursors?.after || '';
+  } while (after);
+
+  const lower = tenantName.toLowerCase();
+  const tenant = allTenants.find((t) =>
+    t.name?.toLowerCase().includes(lower) || lower.includes(t.name?.toLowerCase())
+  );
+  if (!tenant) {
+    return { error: `No tenant found matching "${tenantName}"`, available: allTenants.map((t) => t.name) };
+  }
+
+  const usages = await getTenantUsages(token, tenant.id);
+  return {
+    tenantName: tenant.name,
+    tenantId: tenant.id,
+    totalItems: usages.length,
+    items: usages.map((item: any) => ({
+      name: item.offering_item?.name,
+      measurement_unit: item.measurement_unit,
+      value: item.value,
+      quota: item.offering_item?.quota?.value ?? null,
+      infra_name: item.infra?.name ?? null,
+      type: item.offering_item?.type ?? null,
+      status: item.offering_item?.status ?? null,
+    })),
+  };
+}
+
 async function getTenantUsages(token: string, tenantUuid: string): Promise<any[]> {
   try {
     const response = await axios.get(
