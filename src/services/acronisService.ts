@@ -134,19 +134,15 @@ export async function probeTenantUsages(tenantName: string): Promise<any> {
   }
 
   const usages = await getTenantUsages(token, tenant.id);
+  // Return non-zero items in full so we can see the real field structure
+  const nonZero = usages.filter((item: any) => item.value && item.value > 0);
   return {
     tenantName: tenant.name,
     tenantId: tenant.id,
     totalItems: usages.length,
-    items: usages.map((item: any) => ({
-      name: item.offering_item?.name,
-      measurement_unit: item.measurement_unit,
-      value: item.value,
-      quota: item.offering_item?.quota?.value ?? null,
-      infra_name: item.infra?.name ?? null,
-      type: item.offering_item?.type ?? null,
-      status: item.offering_item?.status ?? null,
-    })),
+    nonZeroCount: nonZero.length,
+    nonZeroItemsRaw: nonZero,
+    allItemKeys: usages.length > 0 ? Object.keys(usages[0]) : [],
   };
 }
 
