@@ -34,6 +34,7 @@ router.get('/storage-status', async (req, res) => {
           quotaFormatted: c.quota_formatted ?? 'No quota set',
           totalUsedFormatted: c.total_used_formatted ?? '—',
           onSiteUsedFormatted: onSiteBytes > 0 ? formatBytes(onSiteBytes) : '—',
+          m365Mailboxes: c.m365_mailboxes ?? 0,
           alertType: c.alert_type ?? 'None',
           threshold: c.storage_threshold ?? 80,
           clientDbId: c.id,
@@ -58,6 +59,7 @@ router.get('/storage-status', async (req, res) => {
         quota_formatted: a.quotaFormatted,
         total_used_bytes: a.totalUsedBytes,
         total_used_formatted: a.totalUsedFormatted,
+        m365_mailboxes: a.m365Mailboxes,
         alert_type: a.alertType,
       });
       databaseService.insertStorageSnapshot({
@@ -81,6 +83,7 @@ router.get('/storage-status', async (req, res) => {
         quotaFormatted: a.quotaFormatted,
         totalUsedFormatted: a.totalUsedFormatted,
         onSiteUsedFormatted: a.onSiteUsedFormatted,
+        m365Mailboxes: a.m365Mailboxes,
         alertType: a.alertType,
         threshold: saved?.storage_threshold ?? 80,
         clientDbId: saved?.id ?? null,

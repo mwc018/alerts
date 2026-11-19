@@ -611,12 +611,13 @@
         <tr>
           <th>Client</th>
           <th>Cloud Storage</th>
+          <th>M365 Mailboxes</th>
           <th>Alert Threshold</th>
         </tr>
       </thead>
       <tbody id="tbody">
         <tr>
-          <td colspan="3" class="loading-cell">
+          <td colspan="4" class="loading-cell">
             <span class="spin spin-muted"></span>&nbsp; Loading saved data…
           </td>
         </tr>
@@ -673,7 +674,7 @@
     const tbody = document.getElementById('tbody');
     if (!rows.length) {
       tbody.innerHTML = `
-        <tr><td colspan="3">
+        <tr><td colspan="4">
           <div class="empty-state">
             <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
@@ -725,6 +726,10 @@
             ${alertChip}
           </td>
           <td class="td-storage">${storageCell}</td>
+          <td style="white-space:nowrap;">${r.m365Mailboxes > 0
+            ? `<span style="font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;">${r.m365Mailboxes}</span><span style="font-size:12px;color:var(--text-muted);margin-left:4px;">mailbox${r.m365Mailboxes !== 1 ? 'es' : ''}</span>`
+            : `<span class="no-quota">—</span>`
+          }</td>
           <td class="td-threshold">
             <div class="threshold-wrap">
               ${thresholdBadge(r.threshold)}
@@ -748,7 +753,9 @@
 
   function updateSyncLabel(rowsData, fromDb) {
     const withQuota = rowsData.filter(x => x.quotaFormatted !== 'No quota set').length;
-    const count = `${rowsData.length} client${rowsData.length !== 1 ? 's' : ''} · ${withQuota} with quota`;
+    const withM365 = rowsData.filter(x => x.m365Mailboxes > 0).length;
+    const m365Part = withM365 > 0 ? ` · ${withM365} with M365` : '';
+    const count = `${rowsData.length} client${rowsData.length !== 1 ? 's' : ''} · ${withQuota} with quota${m365Part}`;
     const ts = rowsData.reduce((best, r) => (!r.lastSyncedAt ? best : (!best || r.lastSyncedAt > best) ? r.lastSyncedAt : best), null);
     const timeLabel = ts ? formatSyncTime(ts) : null;
     const el = document.getElementById('last-synced');
@@ -768,7 +775,7 @@
       rows = await r.json();
       if (rows.length === 0) {
         document.getElementById('tbody').innerHTML = `
-          <tr><td colspan="3">
+          <tr><td colspan="4">
             <div class="empty-state">
               <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
@@ -786,7 +793,7 @@
       }
     } catch (e) {
       document.getElementById('tbody').innerHTML =
-        `<tr><td colspan="3" class="error-cell">Failed to load saved data: ${esc(e.message)}</td></tr>`;
+        `<tr><td colspan="4" class="error-cell">Failed to load saved data: ${esc(e.message)}</td></tr>`;
       document.getElementById('last-synced').textContent = '';
     }
   }
@@ -796,7 +803,7 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span>&nbsp;Syncing…';
     document.getElementById('tbody').innerHTML =
-      '<tr><td colspan="3" class="loading-cell"><span class="spin spin-muted"></span>&nbsp; Fetching from Acronis…</td></tr>';
+      '<tr><td colspan="4" class="loading-cell"><span class="spin spin-muted"></span>&nbsp; Fetching from Acronis…</td></tr>';
 
     try {
       const r = await fetch('/api/clients/storage-status?refresh=true');
@@ -806,7 +813,7 @@
       updateSyncLabel(rows, false);
     } catch (e) {
       document.getElementById('tbody').innerHTML =
-        `<tr><td colspan="3" class="error-cell">Failed to load from Acronis: ${esc(e.message)}</td></tr>`;
+        `<tr><td colspan="4" class="error-cell">Failed to load from Acronis: ${esc(e.message)}</td></tr>`;
     } finally {
       btn.disabled = false;
       btn.textContent = 'Sync from Acronis';

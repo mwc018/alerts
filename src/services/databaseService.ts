@@ -80,6 +80,7 @@ class DatabaseService {
       ['last_synced_at', 'TEXT'],
       ['total_used_bytes', 'INTEGER DEFAULT 0'],
       ['total_used_formatted', 'TEXT'],
+      ['m365_mailboxes', 'INTEGER DEFAULT 0'],
     ] as [string, string][]) {
       if (!clientCols.includes(col)) {
         this.db.exec(`ALTER TABLE clients ADD COLUMN ${col} ${def}`);
@@ -361,6 +362,7 @@ class DatabaseService {
     quota_formatted: string;
     total_used_bytes: number;
     total_used_formatted: string;
+    m365_mailboxes: number;
     alert_type: string;
   }): any {
     const now = new Date().toISOString();
@@ -374,6 +376,7 @@ class DatabaseService {
              percent_used = ?, used_bytes = ?, quota_bytes = ?,
              used_formatted = ?, quota_formatted = ?,
              total_used_bytes = ?, total_used_formatted = ?,
+             m365_mailboxes = ?,
              alert_type = ?, last_synced_at = ?,
              updated_at = datetime('now')
            WHERE id = ?`
@@ -383,6 +386,7 @@ class DatabaseService {
           data.percent_used, data.used_bytes, data.quota_bytes,
           data.used_formatted, data.quota_formatted,
           data.total_used_bytes, data.total_used_formatted,
+          data.m365_mailboxes,
           data.alert_type, now,
           existing.id
         );
@@ -395,14 +399,16 @@ class DatabaseService {
               percent_used, used_bytes, quota_bytes,
               used_formatted, quota_formatted,
               total_used_bytes, total_used_formatted,
+              m365_mailboxes,
               alert_type, last_synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           data.site_name, data.tenant_id, data.tenant_uuid,
           data.percent_used, data.used_bytes, data.quota_bytes,
           data.used_formatted, data.quota_formatted,
           data.total_used_bytes, data.total_used_formatted,
+          data.m365_mailboxes,
           data.alert_type, now
         );
       return this.getClientById(result.lastInsertRowid as number);

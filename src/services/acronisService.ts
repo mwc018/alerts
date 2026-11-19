@@ -54,6 +54,7 @@ export interface StorageQuotaAlert {
   totalUsedFormatted: string;
   onSiteUsedBytes: number;
   onSiteUsedFormatted: string;
+  m365Mailboxes: number;
   alertedAt: string;
 }
 
@@ -261,7 +262,12 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
         let usedBytes = 0;
         let quotaBytes = 0;
         let totalUsedBytes = 0;
+        let m365Mailboxes = 0;
         for (const item of usages) {
+          if (item.usage_name === 'mailboxes') {
+            m365Mailboxes += item.value || 0;
+            continue;
+          }
           if (item.measurement_unit !== 'bytes') continue;
           totalUsedBytes += item.value || 0;
           const quota = item.offering_item?.quota?.value;
@@ -295,6 +301,7 @@ export async function getAllTenantsWithStorage(forceRefresh = false): Promise<St
           totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
           onSiteUsedBytes: totalUsedBytes - usedBytes,
           onSiteUsedFormatted: (totalUsedBytes - usedBytes) > 0 ? formatBytes(totalUsedBytes - usedBytes) : '—',
+          m365Mailboxes,
           alertedAt: alert?.createdAt || alert?.created_at || '',
         };
       })
@@ -381,6 +388,7 @@ export async function getStorageQuotaAlerts(): Promise<StorageQuotaAlert[]> {
       totalUsedFormatted: totalUsedBytes > 0 ? formatBytes(totalUsedBytes) : '—',
       onSiteUsedBytes: totalUsedBytes - usedBytes,
       onSiteUsedFormatted: (totalUsedBytes - usedBytes) > 0 ? formatBytes(totalUsedBytes - usedBytes) : '—',
+      m365Mailboxes: 0,
       alertedAt: alert.createdAt || alert.created_at || '',
     });
   }
